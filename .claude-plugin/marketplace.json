@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "askrealme",
+  "name": "brain-skills",
   "description": "Create, incrementally update, review, and publish evidence-grounded AI brains from user-approved local work history.",
   "owner": {
     "name": "AskRealMe"
