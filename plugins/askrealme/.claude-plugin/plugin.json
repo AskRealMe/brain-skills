@@ -1,0 +1,17 @@
+{
+  "name": "askrealme",
+  "version": "1.2.1",
+  "description": "Create, incrementally update, privacy-review, and publish transferable AI brains from approved local work history.",
+  "author": {
+    "name": "AskRealMe"
+  },
+  "keywords": [
+    "create-brain",
+    "ingest-brain",
+    "review-brain",
+    "upload-brain",
+    "privacy",
+    "knowledge-base",
+    "ai-brain"
+  ]
+}

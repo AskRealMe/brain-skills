@@ -1,0 +1,1916 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Review Brain — AskReal.me</title>
+    <style nonce="__CSP_NONCE__">
+      :root {
+        color-scheme: dark;
+        --ink: #050505;
+        --surface: #0b0b0a;
+        --surface-raised: #11110f;
+        --paper: #f2f0e8;
+        --secondary: rgb(242 240 232 / 66%);
+        --tertiary: rgb(242 240 232 / 48%);
+        --line: rgb(255 255 255 / 11%);
+        --line-strong: rgb(255 255 255 / 19%);
+        --hover: rgb(255 255 255 / 6%);
+        --pressed: rgb(255 255 255 / 10%);
+        --acid: #c7ff18;
+        --acid-ink: #101500;
+        --acid-wash: rgb(199 255 24 / 9%);
+        --acid-line: rgb(199 255 24 / 32%);
+        --warning: #ff8f6b;
+        --warning-wash: rgb(255 143 107 / 9%);
+        --danger: #ff6b62;
+        --radius: 10px;
+        --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", Arial, sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        min-width: 320px;
+        margin: 0;
+        overflow: hidden;
+        background: var(--ink);
+        color: var(--paper);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      button, textarea, input { font: inherit; }
+      button { color: inherit; }
+      ::selection { background: var(--acid); color: var(--acid-ink); }
+      .hidden { display: none !important; }
+
+      .skip-link {
+        position: fixed;
+        z-index: 100;
+        top: -64px;
+        left: 16px;
+        padding: 10px 14px;
+        background: var(--acid);
+        color: var(--acid-ink);
+        font-weight: 700;
+      }
+      .skip-link:focus { top: 12px; }
+
+      .app-shell { display: grid; grid-template-rows: 76px minmax(0, 1fr); height: 100%; }
+      .topbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 24px;
+        padding: 0 24px;
+        border-bottom: 1px solid var(--line);
+        background: #000;
+      }
+      .top-identity { display: flex; align-items: center; min-width: 0; gap: 18px; }
+      .brand {
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: 10px;
+        color: var(--paper);
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .05em;
+      }
+      .brand img { width: 30px; height: 30px; image-rendering: auto; }
+      .context-rule { width: 1px; height: 30px; background: var(--line); }
+      .brain-heading { min-width: 0; }
+      .brain-heading h1 {
+        overflow: hidden;
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .brain-heading p {
+        overflow: hidden;
+        margin: 4px 0 0;
+        color: var(--tertiary);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .top-actions { display: flex; align-items: center; gap: 10px; }
+      .upload-status { max-width: 210px; color: var(--secondary); font-size: 11px; line-height: 1.35; text-align: right; }
+      .upload-status.error { color: #ffc0bc; }
+      .runtime {
+        color: var(--secondary);
+        font-family: var(--mono);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .runtime::before {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 7px;
+        border-radius: 50%;
+        background: var(--acid);
+        content: "";
+      }
+
+      .button, .tab, .view-button, .file-button, .choice-button, .icon-button {
+        border: 0;
+        cursor: pointer;
+      }
+      .button {
+        min-height: 40px;
+        padding: 9px 15px;
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: transparent;
+        font-size: 13px;
+        font-weight: 650;
+      }
+      .button:hover:not(:disabled) { border-color: rgb(255 255 255 / 34%); background: var(--hover); }
+      .button.primary { border-color: var(--acid); background: var(--acid); color: var(--acid-ink); }
+      .button.primary:hover:not(:disabled) { background: #d3ff48; }
+      .button.upload { border-color: var(--acid-line); color: var(--acid); }
+      .button.upload:hover:not(:disabled) { border-color: var(--acid); background: var(--acid-wash); }
+      .button:disabled { cursor: not-allowed; opacity: .38; }
+      .button:active:not(:disabled), .choice-button:active { transform: scale(.98); }
+      a:focus-visible, button:focus-visible, textarea:focus-visible {
+        outline: 2px solid var(--acid);
+        outline-offset: 2px;
+      }
+
+      .review-layout {
+        display: grid;
+        grid-template-columns: 220px minmax(520px, 1fr) 360px;
+        min-height: 0;
+      }
+
+      .file-rail {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        flex-direction: column;
+        border-right: 1px solid var(--line);
+        background: #080808;
+      }
+      .rail-head { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 18px 14px; }
+      .section-label { margin: 0; color: var(--secondary); font-size: 13px; font-weight: 650; }
+      .count { color: var(--tertiary); font-family: var(--mono); font-size: 11px; }
+      .file-list { display: grid; align-content: start; flex: 1; min-height: 0; gap: 2px; overflow-y: auto; padding: 0 9px 20px; }
+      .file-button {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 10px;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--secondary);
+        text-align: left;
+      }
+      .file-button:hover { background: var(--hover); color: var(--paper); }
+      .file-button.active { background: var(--acid-wash); color: var(--paper); }
+      .file-button.active::before {
+        position: absolute;
+        width: 2px;
+        height: 20px;
+        margin-left: -10px;
+        background: var(--acid);
+        content: "";
+      }
+      .file-name { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+      .file-meta { display: flex; align-items: center; gap: 6px; }
+      .dirty-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--acid); }
+      .file-badge {
+        min-width: 20px;
+        padding: 3px 5px;
+        border-radius: 5px;
+        background: var(--warning-wash);
+        color: var(--warning);
+        font-family: var(--mono);
+        font-size: 10px;
+        text-align: center;
+      }
+      .local-note {
+        margin-top: auto;
+        padding: 16px 18px 20px;
+        border-top: 1px solid var(--line);
+        color: var(--tertiary);
+        font-size: 11px;
+        line-height: 1.55;
+      }
+
+      .document-pane { display: grid; grid-template-rows: 62px minmax(0, 1fr); min-width: 0; min-height: 0; background: var(--surface); }
+      .document-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line);
+      }
+      .document-identity { min-width: 0; }
+      .document-name { overflow: hidden; margin: 0; font-family: var(--mono); font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .document-status { margin: 5px 0 0; color: var(--tertiary); font-size: 11px; }
+      .document-actions { display: flex; align-items: center; gap: 8px; }
+      .save-current { min-width: 82px; }
+      .document-body { display: grid; grid-template-columns: minmax(280px, .92fr) minmax(320px, 1.08fr); min-width: 0; min-height: 0; }
+      .editor-column, .preview-column { display: grid; grid-template-rows: 42px minmax(0, 1fr); min-width: 0; min-height: 0; }
+      .editor-column { border-right: 1px solid var(--line); }
+      .pane-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+        color: var(--tertiary);
+        font-family: var(--mono);
+        font-size: 10px;
+      }
+      .pane-label span:last-child { font-variant-numeric: tabular-nums; }
+      .editor {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        resize: none;
+        border: 0;
+        outline: 0;
+        background: #090909;
+        color: #dfddd5;
+        padding: 24px;
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.75;
+        tab-size: 2;
+      }
+      .editor:focus { background: #0a0a09; }
+      .preview-scroll { overflow: auto; background: #f6f4ed; color: #151515; }
+      .markdown { max-width: 720px; margin: 0 auto; padding: 42px clamp(28px, 4vw, 58px) 90px; overflow-wrap: anywhere; font-size: 16px; line-height: 1.7; }
+      .markdown h1, .markdown h2, .markdown h3, .markdown h4 { color: #070707; letter-spacing: -.025em; }
+      .markdown h1 { margin: 0 0 28px; font-size: 34px; font-weight: 680; line-height: 1.12; }
+      .markdown h2 { margin: 44px 0 14px; font-size: 23px; font-weight: 650; line-height: 1.2; }
+      .markdown h3 { margin: 32px 0 11px; font-size: 18px; font-weight: 650; }
+      .markdown h4 { margin: 26px 0 10px; font-size: 16px; font-weight: 650; }
+      .markdown p { margin: 0 0 15px; }
+      .markdown ul { margin: 0 0 18px; padding-left: 21px; }
+      .markdown li + li { margin-top: 6px; }
+      .markdown code { padding: 2px 5px; border-radius: 4px; background: rgb(0 0 0 / 7%); font-family: var(--mono); font-size: .9em; }
+      .markdown pre { overflow: auto; margin: 20px 0; padding: 17px; border: 1px solid rgb(0 0 0 / 12%); border-radius: 8px; background: #eceae3; }
+      .markdown pre code { padding: 0; background: transparent; }
+      .table-scroll { overflow-x: auto; margin: 22px 0; border: 1px solid rgb(0 0 0 / 14%); border-radius: 8px; }
+      .markdown table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .markdown th, .markdown td { min-width: 110px; padding: 10px 12px; border-right: 1px solid rgb(0 0 0 / 10%); border-bottom: 1px solid rgb(0 0 0 / 10%); text-align: left; vertical-align: top; }
+      .markdown th { background: rgb(0 0 0 / 5%); font-weight: 650; }
+      .markdown tr:last-child td { border-bottom: 0; }
+      .markdown th:last-child, .markdown td:last-child { border-right: 0; }
+      .doc-link { padding: 0; border: 0; background: transparent; color: #526b00; cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
+      .inspector { display: grid; grid-template-rows: 53px minmax(0, 1fr); min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: #080808; }
+      .inspector-tabs { display: grid; grid-template-columns: repeat(2, 1fr); border-bottom: 1px solid var(--line); }
+      .tab { position: relative; background: transparent; color: var(--tertiary); font-size: 13px; font-weight: 650; }
+      .tab:hover { color: var(--paper); }
+      .tab[aria-selected="true"] { color: var(--paper); }
+      .tab[aria-selected="true"]::after { position: absolute; right: 22px; bottom: -1px; left: 22px; height: 2px; background: var(--acid); content: ""; }
+      .inspector-panel { min-height: 0; overflow: hidden; }
+      .privacy-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; height: 100%; }
+      .inspector-intro { padding: 22px 18px 16px; }
+      .inspector-intro-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+      .inspector-intro h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.02em; }
+      .inspector-intro p { margin: 9px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.55; }
+      .finding-count { color: var(--warning); font-family: var(--mono); font-size: 12px; }
+      .privacy-review-status { display: flex; align-items: center; gap: 8px; min-height: 18px; padding: 0 18px 14px; color: var(--tertiary); font-size: 11px; line-height: 1.45; }
+      .privacy-review-status::before { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--tertiary); content: ""; }
+      .privacy-review-status[data-status="running"]::before { background: var(--acid); box-shadow: 0 0 0 3px var(--acid-wash); }
+      .privacy-review-status[data-status="complete"]::before { background: var(--acid); }
+      .privacy-review-status[data-status="failed"] { color: var(--warning); }
+      .privacy-review-status[data-status="failed"]::before { background: var(--warning); }
+      .findings { overflow-y: auto; padding: 0 18px 24px; }
+      .empty-state { padding: 40px 10px; color: var(--secondary); text-align: center; font-size: 13px; line-height: 1.65; }
+      .empty-state strong { display: block; margin-bottom: 7px; color: var(--paper); font-size: 14px; }
+      .finding-card { padding: 18px 0 20px; border-bottom: 1px solid var(--line); }
+      .finding-card:first-child { border-top: 1px solid var(--line); }
+      .finding-meta { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+      .category { color: var(--warning); font-size: 12px; font-weight: 700; }
+      .source { color: var(--tertiary); font-family: var(--mono); font-size: 10px; }
+      .quote {
+        margin: 0;
+        padding: 11px 12px;
+        border-left: 2px solid var(--warning);
+        background: var(--warning-wash);
+        color: #efede5;
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+      }
+      .reason { margin: 9px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.55; }
+      .choices { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 13px; }
+      .choice-button { min-height: 34px; border-radius: 6px; background: var(--hover); color: var(--secondary); font-size: 11px; }
+      .choice-button:hover { background: var(--pressed); color: var(--paper); }
+      .choice-button.selected { background: var(--acid-wash); color: var(--acid); box-shadow: inset 0 0 0 1px var(--acid-line); }
+      .choice-button.delete.selected { background: var(--warning-wash); color: var(--warning); box-shadow: inset 0 0 0 1px rgb(255 143 107 / 30%); }
+      .custom-input {
+        width: 100%;
+        min-height: 72px;
+        margin-top: 9px;
+        resize: vertical;
+        border: 1px solid var(--line-strong);
+        border-radius: 7px;
+        outline: 0;
+        background: var(--surface);
+        color: var(--paper);
+        padding: 10px;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .custom-input:focus { border-color: var(--acid); }
+      .decision-summary { padding: 14px 18px 18px; border-top: 1px solid var(--line); background: #080808; color: var(--tertiary); font-size: 11px; }
+
+      .ai-review-panel { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto auto; height: 100%; }
+      .review-controls { padding: 20px 18px 14px; border-bottom: 1px solid var(--line); }
+      .review-controls h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -.02em; }
+      .review-controls > p { margin: 8px 0 13px; color: var(--secondary); font-size: 12px; line-height: 1.5; }
+      .review-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+      .review-action { min-height: 38px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--hover); color: var(--secondary); font-size: 10px; line-height: 1.25; }
+      .review-action:hover:not(:disabled) { border-color: var(--acid-line); color: var(--paper); }
+      .review-action.primary { border-color: var(--acid-line); background: var(--acid-wash); color: var(--acid); }
+      .review-action:disabled { opacity: .42; cursor: not-allowed; }
+      .review-context { margin-top: 11px; color: var(--tertiary); font-family: var(--mono); font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+      .ai-review-status { min-height: 34px; padding: 10px 18px; color: var(--tertiary); font-size: 11px; line-height: 1.4; }
+      .ai-review-status[data-status="running"] { color: var(--acid); }
+      .ai-review-status[data-status="failed"] { color: var(--warning); }
+      .review-summary { display: grid; gap: 8px; padding: 0 18px 14px; border-bottom: 1px solid var(--line); }
+      .review-summary-text { margin: 0; color: var(--secondary); font-size: 12px; line-height: 1.5; }
+      .review-totals { display: flex; flex-wrap: wrap; gap: 5px; }
+      .review-total { padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--tertiary); font-family: var(--mono); font-size: 9px; }
+      .review-total.high { border-color: rgb(255 107 98 / 34%); color: #ffaaa4; }
+      .review-total.unresolved { border-color: var(--acid-line); color: var(--acid); }
+      .review-findings { overflow-y: auto; padding: 0 18px 24px; }
+      .review-findings-list { min-width: 0; }
+      .review-card { padding: 17px 0 20px; border-bottom: 1px solid var(--line); }
+      .review-card:first-child { border-top: 1px solid var(--line); }
+      .review-card[data-status="resolved"] { opacity: .72; }
+      .review-card[data-status="ignored"] { opacity: .58; }
+      .review-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+      .review-card h3 { margin: 0; color: var(--paper); font-size: 13px; line-height: 1.35; }
+      .review-status-badge { flex: none; padding: 3px 6px; border-radius: 999px; background: var(--hover); color: var(--tertiary); font-family: var(--mono); font-size: 8px; text-transform: uppercase; }
+      .review-status-badge.unresolved { background: var(--acid-wash); color: var(--acid); }
+      .review-status-badge.resolved { color: #a9d88f; }
+      .review-location { margin: 6px 0 10px; color: var(--tertiary); font-family: var(--mono); font-size: 9px; overflow-wrap: anywhere; }
+      .review-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
+      .review-meta span { padding: 3px 6px; border-radius: 4px; background: var(--hover); color: var(--secondary); font-size: 9px; }
+      .review-meta .severity-high { background: rgb(255 107 98 / 11%); color: #ffaaa4; }
+      .review-quote, .review-evidence { width: 100%; margin: 0; padding: 10px 11px; border: 0; border-left: 2px solid var(--acid-line); background: var(--acid-wash); color: #efede5; cursor: pointer; text-align: left; font-family: var(--mono); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+      .review-evidence { margin-top: 7px; border-left-color: var(--line-strong); background: var(--hover); color: var(--secondary); }
+      .review-reason { margin: 9px 0 0; color: var(--secondary); font-size: 11px; line-height: 1.55; }
+      .review-diff { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 11px; }
+      .diff-side { min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 6px; }
+      .diff-side strong { display: block; margin-bottom: 5px; color: var(--tertiary); font-size: 8px; text-transform: uppercase; }
+      .diff-side code { display: block; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 9px; line-height: 1.45; }
+      .diff-side.after { border-color: var(--acid-line); background: var(--acid-wash); }
+      .review-replacement { width: 100%; min-height: 64px; margin-top: 7px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 6px; outline: 0; background: var(--surface); color: var(--paper); padding: 8px; font-size: 11px; line-height: 1.45; }
+      .review-replacement:focus { border-color: var(--acid); }
+      .review-choices { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 10px; }
+      .review-choice { min-height: 32px; padding: 4px; border-radius: 6px; background: var(--hover); color: var(--secondary); font-size: 9px; }
+      .review-choice:hover:not(:disabled) { background: var(--pressed); color: var(--paper); }
+      .review-choice.selected { background: var(--acid-wash); color: var(--acid); box-shadow: inset 0 0 0 1px var(--acid-line); }
+      .review-choice.apply { background: var(--acid); color: var(--acid-ink); font-weight: 700; }
+      .review-choice:disabled { opacity: .38; cursor: not-allowed; }
+      .review-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px 16px; border-top: 1px solid var(--line); }
+      .review-footer span { color: var(--tertiary); font-size: 10px; line-height: 1.4; }
+      .review-changes { min-height: 34px; flex: none; }
+
+      .chat-messages { display: flex; flex-direction: column; gap: 12px; padding: 18px 0; }
+      .chat-empty { max-width: 250px; margin: auto; color: var(--secondary); text-align: center; font-size: 13px; line-height: 1.6; }
+      .chat-empty strong { display: block; margin-bottom: 8px; color: var(--paper); font-size: 16px; }
+      .message { display: flex; width: 100%; }
+      .message.user { justify-content: flex-end; }
+      .message.assistant { justify-content: flex-start; }
+      .message-bubble { max-width: 88%; padding: 11px 13px; border-radius: 9px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.55; }
+      .message.user .message-bubble { background: var(--acid); color: var(--acid-ink); border-bottom-right-radius: 3px; }
+      .message.assistant .message-bubble { border: 1px solid var(--line); background: var(--surface-raised); color: #e5e3dc; border-bottom-left-radius: 3px; }
+      .message.pending .message-bubble { color: var(--tertiary); }
+      .chat-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; padding: 12px 14px 16px; border-top: 1px solid var(--line); }
+      .chat-input { width: 100%; min-height: 44px; max-height: 140px; resize: none; border: 1px solid var(--line-strong); border-radius: 8px; outline: 0; background: var(--surface); color: var(--paper); padding: 11px 12px; font-size: 13px; line-height: 1.5; }
+      .chat-input::placeholder { color: var(--tertiary); }
+      .chat-input:focus { border-color: var(--acid); }
+      .send-button { min-width: 58px; height: 44px; padding: 0 12px; }
+
+      .toast {
+        position: fixed;
+        z-index: 90;
+        bottom: 22px;
+        left: 50%;
+        max-width: min(560px, calc(100vw - 32px));
+        padding: 12px 15px;
+        transform: translate(-50%, 16px);
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        background: #171714;
+        color: var(--paper);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 160ms ease, transform 160ms ease;
+        font-size: 12px;
+      }
+      .toast.show { transform: translate(-50%, 0); opacity: 1; }
+      .toast.error { border-color: rgb(255 107 98 / 45%); color: #ffc0bc; }
+
+      .upload-dialog {
+        width: min(520px, calc(100vw - 32px));
+        border: 1px solid var(--line-strong);
+        border-radius: 12px;
+        background: #11110f;
+        color: var(--paper);
+        padding: 0;
+        box-shadow: 0 24px 80px rgb(0 0 0 / 70%);
+      }
+      .upload-dialog::backdrop { background: rgb(0 0 0 / 72%); }
+      .upload-result { padding: 26px; }
+      .upload-result h2 { margin: 0; font-size: 21px; }
+      .upload-result > p { margin: 9px 0 22px; color: var(--secondary); font-size: 13px; line-height: 1.55; }
+      .upload-facts { display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; margin: 0; padding: 16px 0; border-block: 1px solid var(--line); font-size: 12px; }
+      .upload-facts dt { color: var(--tertiary); }
+      .upload-facts dd { margin: 0; color: var(--paper); font-family: var(--mono); overflow-wrap: anywhere; }
+      .upload-local-warning { margin: 16px 0 0 !important; padding: 12px 13px; border: 1px solid rgb(255 143 107 / 38%); border-radius: 8px; background: var(--warning-wash); color: #ffc3af !important; }
+      .upload-result-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+      .upload-result-actions a { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
+      @media (max-width: 1180px) {
+        body { overflow: auto; }
+        .app-shell { height: auto; min-height: 100%; }
+        .review-layout { grid-template-columns: 190px minmax(0, 1fr); }
+        .document-pane { min-height: calc(100vh - 76px); }
+        .inspector { grid-column: 1 / -1; min-height: 520px; border-top: 1px solid var(--line); border-left: 0; }
+        .privacy-panel { min-height: 466px; }
+        .findings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+      }
+
+      @media (max-width: 760px) {
+        .app-shell { grid-template-rows: auto auto; }
+        .topbar { grid-template-columns: 1fr; gap: 14px; padding: 15px 16px; }
+        .brand { font-size: 12px; }
+        .brand img { width: 27px; height: 27px; }
+        .context-rule { display: none; }
+        .brain-heading p { display: none; }
+        .top-actions { justify-content: space-between; }
+        .runtime { overflow: hidden; text-overflow: ellipsis; }
+        .review-layout { display: block; }
+        .file-rail { border-right: 0; border-bottom: 1px solid var(--line); }
+        .rail-head { padding: 14px 16px 10px; }
+        .file-list { display: flex; overflow-x: auto; padding: 0 10px 12px; }
+        .file-button { width: auto; min-width: max-content; }
+        .local-note { display: none; }
+        .document-pane { min-height: 0; grid-template-rows: auto auto; }
+        .document-head { align-items: flex-start; padding: 14px; }
+        .document-actions { flex-direction: column; align-items: stretch; }
+        .document-body { display: block; }
+        .editor-column, .preview-column { display: grid; min-height: 420px; }
+        .editor-column { border-right: 0; border-bottom: 1px solid var(--line); }
+        .markdown { padding: 34px 24px 64px; }
+        .inspector { min-height: 560px; }
+        .findings { display: block; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#editor">Skip to editor</a>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="top-identity">
+          <div class="brand" aria-label="AskReal.me">
+            <img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAAAMFBMVEUCAgIGBgPj9zbv/zi2xypxexoxNAxGTBHC0y2Gkh8TFAXT5jKToCIeIAeksiZbYxUn+AcFAAAACXBIWXMAAAsTAAALEwEAmpwYAAAB0UlEQVRIib2W2bLjIAxEpZYwO/7/v50SjuMFnDupuTX9FEMfA1pwiP63eBD96usp+UGVHhdh4oZB4ZGY+/GJKEBZbnKAPhHm32Zq1FJfow7QNCUK0NjiSkkFYjvpYXUPRNz8dhYvLRVZNxP3mZF4+zeA3wCd567+91tSkIx8OmrsxFmXfTItirC8/XyOxzZwOxeTE3fZAhdIPD3qNdYDwJbTkE7AfX5YgVb5d4D78b5ZIR1hcRJ/BGoJ6vfkrpJfv5+BJgCWfShKPhJBM6AiVCdaujxx6cTe1TwCC5QdIF3mbVavH1YglQy43sbFvKmJbj3Ec2BpOayv5yZt64quwlOAqKZ90zVY5dQWTLmHeJ7po1zzkTlvxOfSsB4CfE9+XchD3ACUa0NZrvNCxBGiyUNWdwYsadcliKmIrj5KUGm0Ahl6MlTFnbBQiQCec07Wo+fMcyeOpn+NxRJV4golny/+PhuMGFSDCPxy9x+EJfXycaguLhN/D31AuF8+XUvGtdaPQKpdky7elKd+uxGlWTnIXZj6ezKK7QtBb/IPt72K81bh4wxP/RwQ+nb/zs9Us6V/CN+TrKIzyvxTQ3Ogb/+b7/jqv/M/RuPZ/rt/K3b9AQ7oEbsqZeyqAAAAAElFTkSuQmCC" />
+            <span>ASKREAL.ME</span>
+          </div>
+          <span class="context-rule" aria-hidden="true"></span>
+          <div class="brain-heading">
+            <h1 id="brain-title">Loading brain</h1>
+            <p id="brain-description"></p>
+          </div>
+        </div>
+        <div class="top-actions">
+          <span id="runtime" class="runtime">Local review</span>
+          <span id="upload-status" class="upload-status hidden" role="status" aria-live="polite"></span>
+          <button id="upload" class="button upload" type="button" disabled>Upload to AskReal.me</button>
+          <button id="save-all" class="button primary" type="button" disabled>Save all</button>
+        </div>
+      </header>
+
+      <main class="review-layout">
+        <nav class="file-rail" aria-label="Brain files">
+          <div class="rail-head">
+            <p class="section-label">Files</p>
+            <span id="file-count" class="count">0</span>
+          </div>
+          <div id="file-list" class="file-list"></div>
+          <p class="local-note">This review screen and its file saves run only on this computer at 127.0.0.1.</p>
+        </nav>
+
+        <section class="document-pane" aria-label="Markdown editing and preview">
+          <header class="document-head">
+            <div class="document-identity">
+              <p id="document-name" class="document-name"></p>
+              <p id="document-status" class="document-status">Saved file</p>
+            </div>
+            <div class="document-actions">
+              <button id="save-current" class="button save-current" type="button" disabled>Save this file</button>
+            </div>
+          </header>
+          <div class="document-body">
+            <section class="editor-column">
+              <div class="pane-label"><span>Markdown</span><span id="character-count">0 characters</span></div>
+              <textarea id="editor" class="editor" spellcheck="false" aria-label="Markdown editor"></textarea>
+            </section>
+            <section class="preview-column">
+              <div class="pane-label"><span>Preview</span><span>Live</span></div>
+              <div id="preview-scroll" class="preview-scroll">
+                <article id="markdown" class="markdown"></article>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="inspector" aria-label="Review tools">
+          <div class="inspector-tabs" role="tablist" aria-label="Choose a review tool">
+            <button id="privacy-tab" class="tab" type="button" role="tab" aria-selected="true" aria-controls="privacy-panel">Privacy</button>
+            <button id="review-tab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="review-panel">AI Chat</button>
+          </div>
+          <section id="privacy-panel" class="inspector-panel privacy-panel" role="tabpanel" aria-labelledby="privacy-tab">
+            <div class="inspector-intro">
+              <div class="inspector-intro-row">
+                <h2>Check before publishing</h2>
+                <span id="finding-count" class="finding-count">0</span>
+              </div>
+              <p>These are candidates found by automated checks. Review the context, then keep or edit each one in the draft.</p>
+            </div>
+            <div id="privacy-review-status" class="privacy-review-status" data-status="pending" role="status" aria-live="polite">Preparing one AI review across all files…</div>
+            <div id="findings" class="findings"></div>
+            <div id="decision-summary" class="decision-summary">Nothing to decide.</div>
+          </section>
+          <section id="review-panel" class="inspector-panel ai-review-panel hidden" role="tabpanel" aria-labelledby="review-tab">
+            <div class="review-controls">
+              <h2>Review agent</h2>
+              <p>The agent sees the active draft, file tree, selection, and matching Privacy results. Choose what it should review.</p>
+              <div class="review-actions">
+                <button id="review-selection" class="review-action" type="button" disabled>Review selection</button>
+                <button id="review-file" class="review-action primary" type="button">Review current file</button>
+                <button id="review-brain" class="review-action" type="button">Review entire brain</button>
+              </div>
+              <div id="review-context" class="review-context"></div>
+            </div>
+            <div id="ai-review-status" class="ai-review-status" data-status="idle" role="status" aria-live="polite">Ask a question or start a structured review.</div>
+            <div class="review-summary">
+              <p id="review-summary-text" class="review-summary-text">No structured review has run yet.</p>
+              <div id="review-totals" class="review-totals"></div>
+            </div>
+            <div id="agent-scroll" class="review-findings">
+              <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+              <div id="review-findings-list" class="review-findings-list"></div>
+            </div>
+            <div class="review-footer">
+              <span id="review-footer-copy">Apply changes browser drafts only. Save writes them to disk.</span>
+              <button id="review-changes" class="button review-changes" type="button" disabled>Review changes</button>
+            </div>
+            <form id="chat-form" class="chat-form">
+              <textarea id="chat-input" class="chat-input" rows="1" placeholder="Ask about the current draft" aria-label="Message to AI"></textarea>
+              <button id="chat-send" class="button primary send-button" type="submit">Send</button>
+            </form>
+          </section>
+        </aside>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <dialog id="upload-dialog" class="upload-dialog" aria-labelledby="upload-result-title">
+      <div class="upload-result">
+        <h2 id="upload-result-title">Upload complete</h2>
+        <p id="upload-result-summary">Confirm ownership to connect this brain to your account. Use the link before it expires.</p>
+        <dl class="upload-facts">
+          <dt>UUID</dt><dd id="upload-uuid">—</dd>
+          <dt>Files</dt><dd id="upload-file-count">—</dd>
+          <dt id="upload-expires-label">Expires</dt><dd id="upload-expires-at">—</dd>
+        </dl>
+        <p id="upload-local-warning" class="upload-local-warning hidden" role="alert"></p>
+        <div class="upload-result-actions">
+          <a id="upload-signin" class="button primary" href="https://www.askreal.me" target="_blank" rel="noopener noreferrer">Confirm ownership</a>
+          <button id="copy-upload-link" class="button" type="button">Copy link</button>
+          <button id="close-upload-dialog" class="button" type="button">Close</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script nonce="__CSP_NONCE__">
+      let state;
+      let activeFile;
+      let saving = false;
+      let uploading = false;
+      let chatting = false;
+      let reviewing = false;
+      let privacyReviewSyncing = false;
+      let reviewSummary = "No structured review has run yet.";
+      let lastReview = null;
+      let renderTimer;
+      const drafts = new Map();
+      const saved = new Map();
+      const decisions = new Map();
+      const reviewFindings = [];
+      const reviewDecisions = new Map();
+      const reviewProposals = new Map();
+      const reviewSnapshots = new Map();
+      const chatMessages = [];
+      const $ = (selector) => document.querySelector(selector);
+      const REVIEW_TOKEN = "__REVIEW_TOKEN__";
+
+      async function api(url, options = {}) {
+        const method = (options.method || "GET").toUpperCase();
+        const headers = { ...(options.headers || {}) };
+        if (method === "POST") {
+          headers["Content-Type"] = "application/json";
+          headers["X-Review-Token"] = REVIEW_TOKEN;
+        }
+        const response = await fetch(url, {
+          ...options,
+          method,
+          headers,
+        });
+        const body = await response.json();
+        if (!response.ok) {
+          const error = new Error(body.error || "Could not process the request.");
+          error.payload = body;
+          throw error;
+        }
+        return body;
+      }
+
+      function toast(message, error = false) {
+        const element = $("#toast");
+        element.textContent = message;
+        element.classList.toggle("error", error);
+        element.classList.add("show");
+        window.clearTimeout(element.toastTimer);
+        element.toastTimer = window.setTimeout(() => element.classList.remove("show"), 3200);
+      }
+
+      function fileByName(name) {
+        return state.files.find((file) => file.name === name);
+      }
+
+      function isDirty(name) {
+        return drafts.get(name) !== saved.get(name);
+      }
+
+      function dirtyNames() {
+        return state.files.map((file) => file.name).filter(isDirty);
+      }
+
+      function currentFindingsFor(name) {
+        const content = drafts.get(name) || "";
+        return state.findings.filter((finding) => (
+          finding.file === name
+          && (decisions.has(finding.id) || findQuote(content, finding) >= 0)
+        ));
+      }
+
+      function selectedText() {
+        if (!activeFile) return null;
+        const editor = $("#editor");
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        if (!Number.isInteger(start) || !Number.isInteger(end) || end <= start) return null;
+        return { start, end, quote: (drafts.get(activeFile) || "").slice(start, end) };
+      }
+
+      function lineNumberAt(content, index) {
+        return content.slice(0, Math.max(0, index)).split("\n").length;
+      }
+
+      function reviewStatus(finding) {
+        return reviewDecisions.get(finding.id)?.status || "unresolved";
+      }
+
+      function visibleReviewFindings() {
+        return reviewFindings.filter((finding) => {
+          const decision = reviewDecisions.get(finding.id);
+          return Boolean(decision || findQuote(drafts.get(finding.file) || "", finding) >= 0);
+        });
+      }
+
+      function currentPrivacyCount(names) {
+        const allowed = new Set(names);
+        return state.findings.filter((finding) => (
+          allowed.has(finding.file)
+          && findQuote(drafts.get(finding.file) || "", finding) >= 0
+        )).length;
+      }
+
+      function reviewDocuments(scope, file = activeFile) {
+        if (scope === "brain") {
+          return state.files.map((file) => ({ name: file.name, content: drafts.get(file.name) || "" }));
+        }
+        return [{ name: file, content: drafts.get(file) || "" }];
+      }
+
+      function chatContext() {
+        const selection = selectedText();
+        const scope = selection ? "selection" : "file";
+        return {
+          scope,
+          file: activeFile,
+          selection,
+          documents: reviewDocuments(scope),
+        };
+      }
+
+      function normalizePathParts(parts) {
+        const normalized = [];
+        for (const part of parts) {
+          if (!part || part === ".") continue;
+          if (part === "..") {
+            if (!normalized.length) return null;
+            normalized.pop();
+            continue;
+          }
+          normalized.push(part);
+        }
+        const result = normalized.join("/");
+        return result.endsWith(".md") ? result : null;
+      }
+
+      function resolveFileLink(href) {
+        const raw = href.trim().replace(/^<|>$/g, "").split("#", 1)[0];
+        if (!raw || raw.includes("\\") || raw.startsWith("/") || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(raw)) return null;
+        const fromRoot = normalizePathParts(raw.split("/"));
+        if (fromRoot && fileByName(fromRoot)) return fromRoot;
+        const parent = activeFile.includes("/") ? activeFile.split("/").slice(0, -1) : [];
+        const relative = normalizePathParts([...parent, ...raw.split("/")]);
+        return relative && fileByName(relative) ? relative : null;
+      }
+
+      function resolveWikiLink(target) {
+        const raw = target.trim();
+        if (raw.includes("/")) return resolveFileLink(raw.endsWith(".md") ? raw : `${raw}.md`);
+        const stem = raw.replace(/\.md$/i, "").toLocaleLowerCase("en-US");
+        const matches = state.files.filter((file) => file.name.split("/").at(-1).replace(/\.md$/i, "").toLocaleLowerCase("en-US") === stem);
+        return matches.length === 1 ? matches[0].name : null;
+      }
+
+      function escapeHtml(value) {
+        return value
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function renderInline(value) {
+        let escaped = escapeHtml(value);
+        escaped = escaped.replace(/`([^`]+)`/g, "<code>$1</code>");
+        escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_whole, label, href) => {
+          const target = resolveFileLink(href);
+          if (!target) return `${label} (${href})`;
+          return `<button class="doc-link" type="button" data-file="${escapeHtml(target)}">${label}</button>`;
+        });
+        escaped = escaped.replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/g, (_whole, rawTarget, label) => {
+          const target = resolveWikiLink(rawTarget);
+          const visible = label || rawTarget;
+          if (!target) return visible;
+          return `<button class="doc-link" type="button" data-file="${escapeHtml(target)}">${visible}</button>`;
+        });
+        return escaped;
+      }
+
+      function renderMarkdown(markdown) {
+        const lines = markdown.replaceAll("\r\n", "\n").split("\n");
+        const html = [];
+        let inCode = false;
+        let listOpen = false;
+        const closeList = () => {
+          if (listOpen) html.push("</ul>");
+          listOpen = false;
+        };
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+          const line = lines[lineIndex];
+          if (line.startsWith("```")) {
+            closeList();
+            html.push(inCode ? "</code></pre>" : "<pre><code>");
+            inCode = !inCode;
+            continue;
+          }
+          if (inCode) {
+            html.push(`${escapeHtml(line)}\n`);
+            continue;
+          }
+          if (
+            line.trim().startsWith("|")
+            && /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(lines[lineIndex + 1] ?? "")
+          ) {
+            closeList();
+            const cells = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
+            html.push('<div class="table-scroll"><table><thead><tr>');
+            for (const cell of cells(line)) html.push(`<th>${renderInline(cell)}</th>`);
+            html.push("</tr></thead><tbody>");
+            lineIndex += 2;
+            while (lineIndex < lines.length && lines[lineIndex].trim().startsWith("|")) {
+              html.push("<tr>");
+              for (const cell of cells(lines[lineIndex])) html.push(`<td>${renderInline(cell)}</td>`);
+              html.push("</tr>");
+              lineIndex += 1;
+            }
+            lineIndex -= 1;
+            html.push("</tbody></table></div>");
+            continue;
+          }
+          const heading = line.match(/^(#{1,4})\s+(.+)$/);
+          if (heading) {
+            closeList();
+            const level = heading[1].length;
+            html.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
+            continue;
+          }
+          const list = line.match(/^[-*]\s+(.+)$/);
+          if (list) {
+            if (!listOpen) html.push("<ul>");
+            listOpen = true;
+            html.push(`<li>${renderInline(list[1])}</li>`);
+            continue;
+          }
+          closeList();
+          if (line.trim() && line !== "---" && !/^(title|description):\s/.test(line)) {
+            html.push(`<p>${renderInline(line)}</p>`);
+          }
+        }
+        closeList();
+        if (inCode) html.push("</code></pre>");
+        return html.join("\n");
+      }
+
+      function renderPreview(immediate = false) {
+        window.clearTimeout(renderTimer);
+        const run = () => {
+          const content = drafts.get(activeFile) || "";
+          $("#markdown").innerHTML = renderMarkdown(content);
+          $("#character-count").textContent = `${content.length.toLocaleString()} characters`;
+        };
+        if (immediate) run();
+        else renderTimer = window.setTimeout(run, 90);
+      }
+
+      function updateControls() {
+        const activeDirty = Boolean(activeFile && isDirty(activeFile));
+        const dirty = dirtyNames();
+        $("#save-current").disabled = saving || uploading || !activeDirty;
+        $("#save-all").disabled = saving || uploading || dirty.length === 0;
+        $("#save-all").textContent = saving ? "Saving" : dirty.length ? `Save all · ${dirty.length}` : "Save all";
+        $("#upload").disabled = saving || uploading || !state;
+        $("#upload").textContent = uploading
+          ? "Preparing upload"
+          : dirty.length
+            ? "Save and upload"
+            : "Upload to AskReal.me";
+        $("#editor").readOnly = saving || uploading;
+        for (const control of document.querySelectorAll(".choice-button, .custom-input")) {
+          control.disabled = saving || uploading;
+        }
+        $("#document-status").textContent = activeDirty ? "Unsaved changes" : "Saved file";
+        renderFiles();
+        updateReviewControls();
+      }
+
+      function renderFiles() {
+        const list = $("#file-list");
+        const scrollTop = list.scrollTop;
+        list.replaceChildren();
+        for (const file of state.files) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "file-button";
+          button.classList.toggle("active", file.name === activeFile);
+          button.dataset.file = file.name;
+          const name = document.createElement("span");
+          name.className = "file-name";
+          name.textContent = file.name;
+          const meta = document.createElement("span");
+          meta.className = "file-meta";
+          if (isDirty(file.name)) {
+            const dot = document.createElement("span");
+            dot.className = "dirty-dot";
+            dot.title = "Unsaved changes";
+            meta.append(dot);
+          }
+          const findingCount = currentFindingsFor(file.name).length;
+          if (findingCount) {
+            const badge = document.createElement("span");
+            badge.className = "file-badge";
+            badge.textContent = findingCount;
+            badge.title = `${findingCount} privacy candidates`;
+            meta.append(badge);
+          }
+          button.append(name, meta);
+          button.addEventListener("click", () => showFile(file.name));
+          list.append(button);
+        }
+        $("#file-count").textContent = state.files.length;
+        list.scrollTop = scrollTop;
+      }
+
+      function findQuote(content, finding) {
+        if (content.slice(finding.start, finding.end) === finding.quote) return finding.start;
+        const positions = [];
+        let from = 0;
+        while (from <= content.length) {
+          const index = content.indexOf(finding.quote, from);
+          if (index < 0) break;
+          positions.push(index);
+          from = index + Math.max(1, finding.quote.length);
+        }
+        if (!positions.length) return -1;
+        return positions.sort((a, b) => Math.abs(a - finding.start) - Math.abs(b - finding.start))[0];
+      }
+
+      function replaceTrackedDecision(content, finding, previous, nextReplacement) {
+        let base = content;
+        if (previous?.applied) {
+          const actual = base.slice(previous.start, previous.start + previous.current.length);
+          if (actual !== previous.current) return null;
+          base = `${base.slice(0, previous.start)}${finding.quote}${base.slice(previous.start + previous.current.length)}`;
+        }
+        if (nextReplacement === null) return { content: base, start: -1 };
+        const start = findQuote(base, finding);
+        if (start < 0) return null;
+        return {
+          content: `${base.slice(0, start)}${nextReplacement}${base.slice(start + finding.quote.length)}`,
+          start,
+        };
+      }
+
+      function setDraft(name, content) {
+        drafts.set(name, content);
+        if (name === activeFile) {
+          $("#editor").value = content;
+          renderPreview(true);
+        }
+        updateControls();
+      }
+
+      function applyFinding(finding, action) {
+        const previous = decisions.get(finding.id);
+        const replacement = action === "keep"
+          ? null
+          : action === "delete"
+            ? ""
+            : action === "custom"
+              ? previous?.replacement ?? finding.replacement
+              : finding.replacement;
+        const result = replaceTrackedDecision(drafts.get(finding.file), finding, previous, replacement);
+        if (!result) {
+          decisions.delete(finding.id);
+          renderFindings();
+          toast("The draft changed, so the replacement location could not be found. Edit it directly in the editor.", true);
+          return;
+        }
+        decisions.set(finding.id, {
+          action,
+          file: finding.file,
+          replacement: replacement ?? finding.quote,
+          current: replacement ?? "",
+          start: result.start,
+          applied: action !== "keep",
+        });
+        setDraft(finding.file, result.content);
+        renderFindings();
+      }
+
+      function updateCustomFinding(finding, input, after) {
+        const decision = decisions.get(finding.id);
+        if (!decision?.applied) return;
+        const content = drafts.get(finding.file);
+        const actual = content.slice(decision.start, decision.start + decision.current.length);
+        if (actual !== decision.current) {
+          decisions.delete(finding.id);
+          renderFindings();
+          toast("This choice overlapped a manual edit, so it was reset.", true);
+          return;
+        }
+        const next = input.value;
+        const updated = `${content.slice(0, decision.start)}${next}${content.slice(decision.start + decision.current.length)}`;
+        decision.current = next;
+        decision.replacement = next;
+        after.textContent = next || "(deleted)";
+        setDraft(finding.file, updated);
+      }
+
+      function reviewScopeKey(scope, file, selection) {
+        return scope === "brain"
+          ? "brain"
+          : scope === "selection"
+            ? `selection:${file}:${selection.start}:${selection.end}`
+            : `file:${file}`;
+      }
+
+      function computeChangedPassage(file, before, after) {
+        if (before === after) return null;
+        let start = 0;
+        while (start < before.length && start < after.length && before[start] === after[start]) start += 1;
+        let beforeEnd = before.length;
+        let afterEnd = after.length;
+        while (
+          beforeEnd > start
+          && afterEnd > start
+          && before[beforeEnd - 1] === after[afterEnd - 1]
+        ) {
+          beforeEnd -= 1;
+          afterEnd -= 1;
+        }
+        return {
+          file,
+          start,
+          end: afterEnd,
+          before: before.slice(start, beforeEnd),
+          after: after.slice(start, afterEnd),
+        };
+      }
+
+      function incrementalReviewChanges() {
+        if (!lastReview || lastReview.scope === "selection") return [];
+        return lastReview.names
+          .map((name) => computeChangedPassage(name, reviewSnapshots.get(name) || "", drafts.get(name) || ""))
+          .filter(Boolean);
+      }
+
+      function updateReviewControls() {
+        if (!state || !activeFile) return;
+        const selection = selectedText();
+        const disabled = reviewing || chatting || saving || uploading;
+        $("#review-selection").disabled = disabled || !selection;
+        $("#review-file").disabled = disabled;
+        $("#review-brain").disabled = disabled;
+        const contextNames = [activeFile];
+        const privacyCount = currentPrivacyCount(contextNames);
+        $("#review-context").textContent = selection
+          ? `${activeFile} · ${selection.quote.length.toLocaleString()} selected characters · ${state.files.length} files indexed · ${privacyCount} Privacy candidate${privacyCount === 1 ? "" : "s"} · ${state.runtime}`
+          : `${activeFile} · ${(drafts.get(activeFile) || "").length.toLocaleString()} characters · ${state.files.length} files indexed · ${privacyCount} Privacy candidate${privacyCount === 1 ? "" : "s"} · ${state.runtime}`;
+        const changes = incrementalReviewChanges();
+        $("#review-changes").disabled = disabled || !changes.length;
+        $("#review-changes").textContent = reviewing
+          ? "Reviewing"
+          : changes.length
+            ? `Review changes · ${changes.length}`
+            : "Review changes";
+        $("#review-footer-copy").textContent = lastReview?.scope === "selection"
+          ? "Select text again for another focused review. Suggestions change drafts only."
+          : "Re-review checks only text changed since the last successful review.";
+        for (const control of document.querySelectorAll(".review-choice, .review-replacement")) {
+          control.disabled = disabled || control.closest(".review-card")?.dataset.status === "resolved";
+        }
+        $("#chat-input").disabled = disabled;
+        $("#chat-send").disabled = disabled;
+      }
+
+      function showReviewLocation(file, quote, occurrence, preferredStart = 0) {
+        showFile(file);
+        const content = drafts.get(file) || "";
+        const finding = { quote, occurrence, start: preferredStart, end: preferredStart + quote.length };
+        const start = findQuote(content, finding);
+        if (start < 0) {
+          toast("That exact passage is no longer present in the draft.", true);
+          return;
+        }
+        const editor = $("#editor");
+        editor.focus();
+        editor.setSelectionRange(start, start + quote.length);
+        updateReviewControls();
+      }
+
+      function selectReviewAction(finding, action) {
+        if (reviewing || reviewStatus(finding) === "resolved") return;
+        if (action === "keep") {
+          reviewProposals.delete(finding.id);
+          reviewDecisions.set(finding.id, { status: "ignored", action: "keep", file: finding.file });
+          renderReviewFindings();
+          return;
+        }
+        reviewDecisions.delete(finding.id);
+        const current = reviewProposals.get(finding.id);
+        const replacement = action === "delete"
+          ? ""
+          : action === "mask"
+            ? finding.replacement || "[sensitive detail removed]"
+            : current?.action === "replace"
+              ? current.replacement
+              : finding.replacement;
+        reviewProposals.set(finding.id, { action, replacement });
+        renderReviewFindings();
+      }
+
+      function applyReviewProposal(finding) {
+        if (reviewing || reviewStatus(finding) === "resolved") return;
+        const proposal = reviewProposals.get(finding.id);
+        if (!proposal) return;
+        const content = drafts.get(finding.file) || "";
+        const start = findQuote(content, finding);
+        if (start < 0) {
+          toast("The draft changed, so the exact passage could not be found. Run the review again.", true);
+          return;
+        }
+        const next = `${content.slice(0, start)}${proposal.replacement}${content.slice(start + finding.quote.length)}`;
+        reviewDecisions.set(finding.id, {
+          status: "resolved",
+          action: proposal.action,
+          file: finding.file,
+          replacement: proposal.replacement,
+        });
+        setDraft(finding.file, next);
+        renderReviewFindings();
+        toast(`Applied the suggestion to the ${finding.file} browser draft.`);
+      }
+
+      function reviewChip(label, value, className = "") {
+        const chip = document.createElement("span");
+        chip.className = `review-total ${className}`.trim();
+        chip.textContent = `${label} ${value}`;
+        return chip;
+      }
+
+      function renderReviewFindings() {
+        const visible = visibleReviewFindings();
+        const scroller = $("#agent-scroll");
+        const scrollTop = scroller.scrollTop;
+        const container = $("#review-findings-list");
+        container.replaceChildren();
+        $("#review-summary-text").textContent = reviewSummary;
+        const totals = $("#review-totals");
+        totals.replaceChildren();
+        const high = visible.filter((finding) => finding.severity === "high").length;
+        const unresolved = visible.filter((finding) => reviewStatus(finding) === "unresolved").length;
+        const resolved = visible.filter((finding) => reviewStatus(finding) === "resolved").length;
+        const ignored = visible.filter((finding) => reviewStatus(finding) === "ignored").length;
+        totals.append(
+          reviewChip("High", high, "high"),
+          reviewChip("Unresolved", unresolved, "unresolved"),
+          reviewChip("Resolved", resolved),
+          reviewChip("Ignored", ignored),
+        );
+        if (!visible.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          const heading = document.createElement("strong");
+          heading.textContent = reviewing ? "Review in progress" : lastReview ? "No material issues found" : "Run a focused review";
+          empty.append(heading, document.createTextNode(
+            reviewing
+              ? "Existing content stays visible while the selected scope is reviewed."
+              : lastReview
+                ? "The reviewed scope has no unresolved findings."
+                : "Review a selection, the current file, or the entire brain.",
+          ));
+          container.append(empty);
+        }
+        for (const finding of visible) {
+          const status = reviewStatus(finding);
+          const proposal = reviewProposals.get(finding.id);
+          const card = document.createElement("section");
+          card.className = "review-card";
+          card.dataset.status = status;
+          const head = document.createElement("div");
+          head.className = "review-card-head";
+          const title = document.createElement("h3");
+          title.textContent = finding.title;
+          const badge = document.createElement("span");
+          badge.className = `review-status-badge ${status}`;
+          badge.textContent = status;
+          head.append(title, badge);
+          const content = drafts.get(finding.file) || "";
+          const currentStart = findQuote(content, finding);
+          const location = document.createElement("p");
+          location.className = "review-location";
+          location.textContent = `${finding.file} · line ${lineNumberAt(content, currentStart >= 0 ? currentStart : finding.start)}`;
+          const meta = document.createElement("div");
+          meta.className = "review-meta";
+          for (const [value, className] of [
+            [finding.category, ""],
+            [finding.severity, `severity-${finding.severity}`],
+            [`${finding.confidence} confidence`, ""],
+            [`suggested: ${finding.proposedAction}`, ""],
+          ]) {
+            const item = document.createElement("span");
+            item.className = className;
+            item.textContent = value;
+            meta.append(item);
+          }
+          const quote = document.createElement("button");
+          quote.type = "button";
+          quote.className = "review-quote";
+          quote.title = "Show this exact passage in the editor";
+          quote.textContent = finding.quote;
+          quote.addEventListener("click", () => showReviewLocation(
+            finding.file,
+            finding.quote,
+            finding.occurrence,
+            finding.start,
+          ));
+          const reason = document.createElement("p");
+          reason.className = "review-reason";
+          reason.textContent = finding.reason;
+          card.append(head, location, meta, quote);
+          if (finding.evidenceFile && finding.evidenceQuote) {
+            const evidence = document.createElement("button");
+            evidence.type = "button";
+            evidence.className = "review-evidence";
+            evidence.title = "Show supporting evidence in the editor";
+            evidence.textContent = `Evidence · ${finding.evidenceFile}: ${finding.evidenceQuote}`;
+            evidence.addEventListener("click", () => showReviewLocation(
+              finding.evidenceFile,
+              finding.evidenceQuote,
+              finding.evidenceOccurrence,
+              finding.evidenceStart,
+            ));
+            card.append(evidence);
+          }
+          card.append(reason);
+          if (proposal) {
+            const diff = document.createElement("div");
+            diff.className = "review-diff";
+            for (const [label, value, className] of [
+              ["Before", finding.quote, ""],
+              ["After", proposal.replacement || "(deleted)", "after"],
+            ]) {
+              const side = document.createElement("div");
+              side.className = `diff-side ${className}`.trim();
+              const sideLabel = document.createElement("strong");
+              sideLabel.textContent = label;
+              const code = document.createElement("code");
+              code.textContent = value;
+              side.append(sideLabel, code);
+              diff.append(side);
+            }
+            card.append(diff);
+            if (proposal.action === "replace" || proposal.action === "mask") {
+              const replacement = document.createElement("textarea");
+              replacement.className = "review-replacement";
+              replacement.value = proposal.replacement;
+              replacement.setAttribute("aria-label", `Replacement for ${finding.title}`);
+              replacement.addEventListener("input", (event) => {
+                proposal.replacement = event.currentTarget.value;
+                const after = card.querySelector(".diff-side.after code");
+                if (after) after.textContent = proposal.replacement || "(deleted)";
+              });
+              card.append(replacement);
+            }
+          }
+          const choices = document.createElement("div");
+          choices.className = "review-choices";
+          for (const [action, label] of [["keep", "Keep"], ["mask", "Mask"], ["replace", "Replace"], ["delete", "Delete"]]) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "review-choice";
+            button.classList.toggle("selected", action === "keep"
+              ? status === "ignored"
+              : proposal?.action === action);
+            button.textContent = label;
+            button.disabled = status === "resolved";
+            button.addEventListener("click", () => selectReviewAction(finding, action));
+            choices.append(button);
+          }
+          const apply = document.createElement("button");
+          apply.type = "button";
+          apply.className = "review-choice apply";
+          apply.textContent = "Apply";
+          apply.disabled = !proposal || status === "resolved" || status === "ignored";
+          apply.addEventListener("click", () => applyReviewProposal(finding));
+          choices.append(apply);
+          card.append(choices);
+          container.append(card);
+        }
+        scroller.scrollTop = scrollTop;
+        updateReviewControls();
+      }
+
+      function mergeAiReview(result, payload) {
+        const scopeKey = reviewScopeKey(payload.scope, payload.file, payload.selection);
+        const refreshedFiles = new Set(payload.incremental
+          ? payload.changes.map((change) => change.file)
+          : payload.documents.map((document) => document.name));
+        for (let index = reviewFindings.length - 1; index >= 0; index -= 1) {
+          const finding = reviewFindings[index];
+          const currentStart = findQuote(drafts.get(finding.file) || "", finding);
+          const changedFinding = payload.incremental && payload.changes.some((change) => (
+            change.file === finding.file
+            && (
+              currentStart < 0
+              || (currentStart < change.end && change.start < currentStart + finding.quote.length)
+            )
+          ));
+          if (
+            finding.scopeKey === scopeKey
+            && (payload.incremental ? changedFinding : refreshedFiles.has(finding.file))
+            && reviewStatus(finding) === "unresolved"
+          ) {
+            reviewProposals.delete(finding.id);
+            reviewFindings.splice(index, 1);
+          }
+        }
+        for (const finding of result.review.findings) {
+          let existingIndex = reviewFindings.findIndex((candidate) => candidate.id === finding.id);
+          if (existingIndex >= 0) {
+            if (reviewStatus(reviewFindings[existingIndex]) !== "unresolved") continue;
+            reviewProposals.delete(reviewFindings[existingIndex].id);
+            reviewFindings.splice(existingIndex, 1);
+          }
+          const incomingStart = findQuote(drafts.get(finding.file) || "", finding);
+          existingIndex = reviewFindings.findIndex((candidate) => {
+            if (
+              candidate.file !== finding.file
+              || candidate.category !== finding.category
+              || reviewStatus(candidate) !== "unresolved"
+            ) return false;
+            const candidateStart = findQuote(drafts.get(candidate.file) || "", candidate);
+            if (incomingStart < 0 || candidateStart < 0) return false;
+            return incomingStart < candidateStart + candidate.quote.length
+              && candidateStart < incomingStart + finding.quote.length;
+          });
+          if (existingIndex >= 0) {
+            reviewProposals.delete(reviewFindings[existingIndex].id);
+            reviewFindings.splice(existingIndex, 1);
+          }
+          reviewFindings.push({ ...finding, scopeKey });
+          if (finding.proposedAction !== "review") {
+            reviewProposals.set(finding.id, {
+              action: finding.proposedAction,
+              replacement: finding.proposedAction === "delete"
+                ? ""
+                : finding.replacement || (finding.proposedAction === "mask" ? "[sensitive detail removed]" : ""),
+            });
+          }
+        }
+        for (const document of payload.documents) reviewSnapshots.set(document.name, document.content);
+        lastReview = {
+          scope: payload.scope,
+          file: payload.file,
+          selection: payload.selection,
+          names: payload.documents.map((document) => document.name),
+        };
+        reviewSummary = result.review.summary;
+        renderReviewFindings();
+      }
+
+      async function runAiReview(scope, incremental = false) {
+        if (reviewing || chatting || saving || uploading) return;
+        const file = incremental ? lastReview?.file : activeFile;
+        if (!file) return;
+        const effectiveScope = incremental ? lastReview.scope : scope;
+        const selection = effectiveScope === "selection" ? selectedText() : null;
+        if (effectiveScope === "selection" && !selection) {
+          toast("Select text in the Markdown editor first.", true);
+          return;
+        }
+        const documents = reviewDocuments(effectiveScope, file);
+        const changes = incremental ? incrementalReviewChanges() : [];
+        if (incremental && !changes.length) {
+          toast("No text has changed since the last successful review.");
+          return;
+        }
+        const payload = {
+          scope: effectiveScope,
+          file,
+          selection,
+          documents,
+          incremental,
+          changes,
+        };
+        reviewing = true;
+        $("#ai-review-status").dataset.status = "running";
+        $("#ai-review-status").textContent = incremental
+          ? `Reviewing ${changes.length} changed passage${changes.length === 1 ? "" : "s"} with ${state.runtime}…`
+          : `Reviewing ${effectiveScope === "brain" ? "the entire brain" : effectiveScope === "selection" ? "the selection" : file} with ${state.runtime}…`;
+        updateReviewControls();
+        renderReviewFindings();
+        try {
+          const result = await api("/api/review", { method: "POST", body: JSON.stringify(payload) });
+          mergeAiReview(result, payload);
+          $("#ai-review-status").dataset.status = "complete";
+          $("#ai-review-status").textContent = incremental
+            ? "Changed passages reviewed. Resolved and ignored findings are retained."
+            : `Review complete · ${result.review.findings.length} finding${result.review.findings.length === 1 ? "" : "s"}`;
+        } catch (error) {
+          $("#ai-review-status").dataset.status = "failed";
+          $("#ai-review-status").textContent = error.message;
+          toast(error.message, true);
+        } finally {
+          reviewing = false;
+          updateReviewControls();
+          renderReviewFindings();
+        }
+      }
+
+      function renderPrivacyReviewStatus() {
+        const element = $("#privacy-review-status");
+        const review = state.privacyReview;
+        element.dataset.status = review.status;
+        if (review.status === "running") {
+          element.textContent = `AI is reviewing all files with ${state.runtime}…`;
+          return;
+        }
+        if (review.status === "complete") {
+          const count = state.findings.filter((finding) => finding.source === "ai").length;
+          element.textContent = count
+            ? `AI context review complete · ${count} candidate${count === 1 ? "" : "s"}`
+            : "AI context review complete · no additional candidates";
+          return;
+        }
+        if (review.status === "failed") {
+          element.textContent = review.error || "AI context review was unavailable. Local checks are still shown.";
+          return;
+        }
+        element.textContent = "Preparing one AI review across all files…";
+      }
+
+      function renderFindings() {
+        const visible = currentFindingsFor(activeFile);
+        const container = $("#findings");
+        const scrollTop = container.scrollTop;
+        container.replaceChildren();
+        $("#finding-count").textContent = visible.length;
+        if (!visible.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          empty.innerHTML = state.privacyReview.status === "pending" || state.privacyReview.status === "running"
+            ? "<strong>No local candidates found</strong>The AI context review is still checking all files."
+            : "<strong>No candidates found</strong>Automated checks are not exhaustive. Read the full document once more.";
+          container.append(empty);
+        }
+        for (const finding of visible) {
+          const decision = decisions.get(finding.id);
+          const card = document.createElement("section");
+          card.className = "finding-card";
+          const meta = document.createElement("div");
+          meta.className = "finding-meta";
+          const category = document.createElement("span");
+          category.className = "category";
+          category.textContent = finding.category;
+          const source = document.createElement("span");
+          source.className = "source";
+          source.textContent = finding.source === "ai"
+            ? `AI review · ${finding.severity}`
+            : "Local check";
+          meta.append(category, source);
+          const quote = document.createElement("p");
+          quote.className = "quote";
+          quote.textContent = finding.quote;
+          quote.title = "Show in editor";
+          quote.addEventListener("click", () => {
+            const start = findQuote(drafts.get(activeFile), finding);
+            if (start >= 0) {
+              $("#editor").focus();
+              $("#editor").setSelectionRange(start, start + finding.quote.length);
+            }
+          });
+          const reason = document.createElement("p");
+          reason.className = "reason";
+          reason.textContent = finding.reason;
+          const choices = document.createElement("div");
+          choices.className = "choices";
+          for (const [action, label] of [["keep", "Keep"], ["mask", "Mask"], ["delete", "Delete"], ["custom", "Edit"]]) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `choice-button${action === "delete" ? " delete" : ""}`;
+            button.classList.toggle("selected", decision?.action === action);
+            button.textContent = label;
+            button.addEventListener("click", () => applyFinding(finding, action));
+            choices.append(button);
+          }
+          card.append(meta, quote, reason, choices);
+          if (decision?.action === "custom") {
+            const custom = document.createElement("textarea");
+            custom.className = "custom-input";
+            custom.value = decision.replacement;
+            custom.placeholder = "Replace it with wording you can publish.";
+            const after = document.createElement("span");
+            after.className = "hidden";
+            custom.addEventListener("input", () => updateCustomFinding(finding, custom, after));
+            card.append(custom, after);
+          }
+          container.append(card);
+        }
+        container.scrollTop = scrollTop;
+        const decided = visible.filter((finding) => decisions.has(finding.id)).length;
+        $("#decision-summary").textContent = visible.length
+          ? `${activeFile} · ${decided}/${visible.length} decided`
+          : state.privacyReview.status === "pending" || state.privacyReview.status === "running"
+            ? `${activeFile} · AI review in progress`
+            : `${activeFile} · No automated candidates`;
+        renderPrivacyReviewStatus();
+      }
+
+      function showFile(name) {
+        if (!fileByName(name)) return;
+        activeFile = name;
+        $("#document-name").textContent = name;
+        $("#editor").value = drafts.get(name);
+        $("#preview-scroll").scrollTop = 0;
+        renderPreview(true);
+        renderFiles();
+        renderFindings();
+        renderReviewFindings();
+        updateControls();
+      }
+
+      function setInspectorTab(tab) {
+        const privacy = tab === "privacy";
+        const review = tab === "review";
+        $("#privacy-tab").setAttribute("aria-selected", String(privacy));
+        $("#review-tab").setAttribute("aria-selected", String(review));
+        $("#privacy-panel").classList.toggle("hidden", !privacy);
+        $("#review-panel").classList.toggle("hidden", !review);
+        if (review) {
+          updateReviewControls();
+          $("#chat-input").focus();
+        }
+      }
+
+      function mergeServerState(next, changed) {
+        const changedSet = new Set(changed);
+        state = next;
+        for (const file of state.files) {
+          saved.set(file.name, file.content);
+          if (changedSet.has(file.name) || !drafts.has(file.name)) drafts.set(file.name, file.content);
+        }
+        for (const [id, decision] of decisions) {
+          if (changedSet.has(decision.file)) decisions.delete(id);
+        }
+        $("#brain-title").textContent = state.title;
+        $("#brain-description").textContent = state.description;
+        showFile(activeFile);
+      }
+
+      function mergePrivacyReviewState(next) {
+        state = {
+          ...state,
+          findings: next.findings,
+          privacyReview: next.privacyReview,
+        };
+        renderFiles();
+        renderFindings();
+      }
+
+      async function syncPrivacyReview() {
+        if (
+          privacyReviewSyncing
+          || state.privacyReview.status === "complete"
+          || state.privacyReview.status === "failed"
+        ) return;
+        privacyReviewSyncing = true;
+        try {
+          let next = state;
+          if (state.privacyReview.status === "pending") {
+            state.privacyReview = { status: "running" };
+            renderPrivacyReviewStatus();
+            next = await api("/api/privacy-review", { method: "POST", body: "{}" });
+            mergePrivacyReviewState(next);
+          }
+          while (next.privacyReview.status === "running") {
+            await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+            next = await api("/api/state");
+            mergePrivacyReviewState(next);
+          }
+        } catch (error) {
+          state.privacyReview = {
+            status: "failed",
+            error: "AI context review was unavailable. Continue with the local checks and read the full document.",
+          };
+          renderFindings();
+          toast(error.message, true);
+        } finally {
+          privacyReviewSyncing = false;
+        }
+      }
+
+      async function saveCurrent() {
+        if (saving || !isDirty(activeFile)) return;
+        saving = true;
+        updateControls();
+        $("#save-current").textContent = "Saving";
+        try {
+          const next = await api("/api/save", {
+            method: "POST",
+            body: JSON.stringify({ name: activeFile, content: drafts.get(activeFile) }),
+          });
+          mergeServerState(next, next.saved.changed);
+          toast(`Saved ${activeFile}.`);
+        } catch (error) {
+          toast(error.message, true);
+        } finally {
+          saving = false;
+          $("#save-current").textContent = "Save this file";
+          updateControls();
+        }
+      }
+
+      async function saveAll() {
+        const names = dirtyNames();
+        if (saving || !names.length) return;
+        saving = true;
+        updateControls();
+        try {
+          const next = await api("/api/save-all", {
+            method: "POST",
+            body: JSON.stringify({ files: names.map((name) => ({ name, content: drafts.get(name) })) }),
+          });
+          mergeServerState(next, next.saved.changed);
+          toast(`Saved ${next.saved.changed.length} files.`);
+        } catch (error) {
+          toast(error.message, true);
+        } finally {
+          saving = false;
+          updateControls();
+        }
+      }
+
+      function setUploadStatus(message = "", error = false) {
+        const status = $("#upload-status");
+        status.textContent = message;
+        status.classList.toggle("hidden", !message);
+        status.classList.toggle("error", Boolean(message) && error);
+      }
+
+      function showUploadResult(upload) {
+        const created = upload.mode === "created";
+        $("#upload-result-title").textContent = created ? "New brain uploaded" : "Brain updated";
+        $("#upload-result-summary").textContent = created
+          ? "Confirm ownership to connect this brain to your account. Use the link before it expires."
+          : "The one-time brain ZIP update was authorized, and the brain with the same UUID was updated.";
+        $("#upload-uuid").textContent = upload.uuid;
+        $("#upload-file-count").textContent = upload.fileCount.toLocaleString();
+        $("#upload-expires-label").classList.toggle("hidden", !created);
+        $("#upload-expires-at").classList.toggle("hidden", !created);
+        $("#upload-signin").classList.toggle("hidden", !created);
+        $("#copy-upload-link").classList.toggle("hidden", !created);
+        if (created) {
+          $("#upload-expires-at").textContent = new Intl.DateTimeFormat("en-US", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(upload.expiresAt));
+          $("#upload-signin").href = upload.confirmUrl;
+        }
+        const warning = $("#upload-local-warning");
+        warning.textContent = "";
+        warning.classList.add("hidden");
+        $("#upload-dialog").showModal();
+      }
+
+      const wait = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+      async function authorizeExistingBrain(approvalWindow) {
+        setUploadStatus(`Checking brain ${state.brainId}…`);
+        const auth = await api("/api/upload-auth/start", {
+          method: "POST",
+          body: JSON.stringify({ brainId: state.brainId }),
+        });
+        if (auth.mode === "create") {
+          approvalWindow.close();
+          setUploadStatus("Sending the reviewed ZIP…");
+          return { mode: "create" };
+        }
+        if (auth.mode === "pending") {
+          approvalWindow.location.replace(auth.confirmUrl);
+          setUploadStatus("This brain is already uploaded. Finish ownership confirmation in the opened window.");
+          return { mode: "pending" };
+        }
+        approvalWindow.location.replace(auth.authorizeUrl);
+        setUploadStatus(`In the authorization window, allow a one-time brain ZIP update for UUID ${state.brainId}.`);
+        const expiresAt = Date.parse(auth.expiresAt);
+        while (Date.now() < expiresAt) {
+          await wait(700);
+          const result = await api("/api/upload-auth/status", {
+            method: "POST",
+            body: JSON.stringify({ state: auth.state, brainId: state.brainId }),
+          });
+          if (result.status === "authorized") {
+            approvalWindow.close();
+            setUploadStatus("Authorization confirmed. Sending the reviewed ZIP…");
+            return { mode: "update", authState: auth.state };
+          }
+          if (result.status === "failed") {
+            throw new Error(result.error || "Could not complete the authorization callback. Try again.");
+          }
+          // A cross-origin authorization page may sever its opener through
+          // Cross-Origin-Opener-Policy, which makes WindowProxy.closed look
+          // true even while the approval page is still open. The local status
+          // endpoint is the source of truth; wait for authorization or expiry.
+        }
+        approvalWindow.close();
+        throw new Error("Upload authorization did not finish within five minutes. Try again.");
+      }
+
+      async function uploadReviewedBrain() {
+        if (saving || uploading) return;
+        const confirmation = `Target brain UUID: ${state.brainId}\nOnly privacy-reviewed output/ files will be sent to AskReal.me. raw/, unrelated/, schema.md, and README.md will not be sent. Continue?`;
+        const confirmed = window.confirm(confirmation);
+        if (!confirmed) return;
+        const approvalWindow = window.open("about:blank", "askreal-upload-authorize", "popup,width=560,height=720");
+        if (!approvalWindow) {
+          setUploadStatus("Could not open the authorization window. Allow pop-ups, then try again.", true);
+          toast("Allow pop-ups, then try again.", true);
+          return;
+        }
+        uploading = true;
+        updateControls();
+        try {
+          const pendingNames = dirtyNames();
+          if (pendingNames.length) {
+            setUploadStatus(`Saving ${pendingNames.length} unsaved files first…`);
+            const savedState = await api("/api/save-all", {
+              method: "POST",
+              body: JSON.stringify({
+                files: pendingNames.map((name) => ({ name, content: drafts.get(name) })),
+              }),
+            });
+            mergeServerState(savedState, savedState.saved.changed);
+            toast(`Saved ${savedState.saved.changed.length} files. Continuing upload authorization.`);
+          }
+          const authorization = await authorizeExistingBrain(approvalWindow);
+          if (authorization.mode === "pending") {
+            toast("This brain is waiting for ownership confirmation.");
+            return;
+          }
+          const names = dirtyNames();
+          const next = await api("/api/upload", {
+            method: "POST",
+            body: JSON.stringify({
+              files: names.map((name) => ({ name, content: drafts.get(name) })),
+              ...(authorization.authState ? { authState: authorization.authState } : {}),
+            }),
+          });
+          const changed = [...new Set([...next.saved.changed, ...next.sessionSync.changed])];
+          mergeServerState(next, changed);
+          showUploadResult(next.upload);
+          setUploadStatus("");
+          toast(next.upload.mode === "created"
+            ? `Uploaded ${next.upload.fileCount} files. Confirm ownership to finish.`
+            : `Updated the existing brain with ${next.upload.fileCount} files.`);
+        } catch (error) {
+          if (approvalWindow && !approvalWindow.closed) approvalWindow.close();
+          if (error.payload?.saved) mergeServerState(error.payload, error.payload.saved.changed);
+          setUploadStatus(error.message, true);
+          toast(error.message, true);
+        } finally {
+          uploading = false;
+          updateControls();
+        }
+      }
+
+      function renderChat() {
+        const container = $("#chat-messages");
+        container.replaceChildren();
+        if (!chatMessages.length) {
+          const empty = document.createElement("div");
+          empty.className = "chat-empty";
+          empty.innerHTML = "<strong>Work with this brain</strong>The current draft and any selected text are attached automatically. Use the review buttons for grounded findings and safe draft changes.";
+          container.append(empty);
+        }
+        for (const message of chatMessages) {
+          const row = document.createElement("div");
+          row.className = `message ${message.role}${message.pending ? " pending" : ""}`;
+          const bubble = document.createElement("div");
+          bubble.className = "message-bubble";
+          bubble.textContent = message.content;
+          row.append(bubble);
+          container.append(row);
+        }
+        const scroller = $("#agent-scroll");
+        if (scroller) scroller.scrollTop = scroller.scrollHeight;
+      }
+
+      async function sendChat(event) {
+        event.preventDefault();
+        const input = $("#chat-input");
+        const content = input.value.trim();
+        if (!content || chatting || reviewing) return;
+        chatMessages.push({ role: "user", content });
+        input.value = "";
+        input.style.height = "auto";
+        chatting = true;
+        updateReviewControls();
+        chatMessages.push({ role: "assistant", content: `Waiting for ${state.runtime}…`, pending: true });
+        renderChat();
+        try {
+          const history = chatMessages.filter((message) => !message.pending).map(({ role, content: text }) => ({ role, content: text }));
+          const result = await api("/api/chat", {
+            method: "POST",
+            body: JSON.stringify({ messages: history, context: chatContext() }),
+          });
+          chatMessages.pop();
+          chatMessages.push(result.message);
+        } catch (error) {
+          chatMessages.pop();
+          toast(error.message, true);
+        } finally {
+          chatting = false;
+          updateReviewControls();
+          renderChat();
+          input.focus();
+        }
+      }
+
+      async function start() {
+        try {
+          state = await api("/api/state");
+          for (const file of state.files) {
+            drafts.set(file.name, file.content);
+            saved.set(file.name, file.content);
+          }
+          activeFile = state.files[0].name;
+          $("#brain-title").textContent = state.title;
+          $("#brain-description").textContent = state.description;
+          $("#runtime").textContent = state.runtime;
+          showFile(activeFile);
+          setInspectorTab("privacy");
+          renderChat();
+          renderReviewFindings();
+          void syncPrivacyReview();
+
+          $("#editor").addEventListener("input", (event) => {
+            const activeDecisions = [...decisions].filter(([, decision]) => decision.file === activeFile);
+            if (activeDecisions.length) {
+              for (const [id] of activeDecisions) decisions.delete(id);
+              renderFindings();
+              toast("You started editing directly, so this file's choices were reset.");
+            }
+            for (const [id] of reviewProposals) {
+              const finding = reviewFindings.find((candidate) => candidate.id === id);
+              if (finding?.file === activeFile && reviewStatus(finding) === "unresolved") {
+                reviewProposals.delete(id);
+              }
+            }
+            drafts.set(activeFile, event.currentTarget.value);
+            renderPreview();
+            renderReviewFindings();
+            updateControls();
+          });
+          for (const eventName of ["select", "keyup", "mouseup"]) {
+            $("#editor").addEventListener(eventName, updateReviewControls);
+          }
+          $("#markdown").addEventListener("click", (event) => {
+            const link = event.target.closest(".doc-link");
+            if (link) showFile(link.dataset.file);
+          });
+          $("#save-current").addEventListener("click", saveCurrent);
+          $("#save-all").addEventListener("click", saveAll);
+          $("#upload").addEventListener("click", uploadReviewedBrain);
+          $("#close-upload-dialog").addEventListener("click", () => $("#upload-dialog").close());
+          $("#copy-upload-link").addEventListener("click", async () => {
+            try {
+              await navigator.clipboard.writeText($("#upload-signin").href);
+              toast("Confirmation link copied.");
+            } catch {
+              toast("Could not copy the link. Copy the address from the confirmation button.", true);
+            }
+          });
+          $("#privacy-tab").addEventListener("click", () => setInspectorTab("privacy"));
+          $("#review-tab").addEventListener("click", () => setInspectorTab("review"));
+          $("#review-selection").addEventListener("click", () => runAiReview("selection"));
+          $("#review-file").addEventListener("click", () => runAiReview("file"));
+          $("#review-brain").addEventListener("click", () => runAiReview("brain"));
+          $("#review-changes").addEventListener("click", () => runAiReview(lastReview?.scope, true));
+          $("#chat-form").addEventListener("submit", sendChat);
+          $("#chat-input").addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              $("#chat-form").requestSubmit();
+            }
+          });
+          $("#chat-input").addEventListener("input", (event) => {
+            event.currentTarget.style.height = "auto";
+            event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 140)}px`;
+          });
+          window.addEventListener("keydown", (event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+              event.preventDefault();
+              saveCurrent();
+            }
+          });
+          window.addEventListener("beforeunload", (event) => {
+            if (!dirtyNames().length) return;
+            event.preventDefault();
+            event.returnValue = "";
+          });
+        } catch (error) {
+          $("#brain-title").textContent = "Could not open the review screen";
+          $("#brain-description").textContent = error.message;
+          toast(error.message, true);
+        }
+      }
+
+      start();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "askrealme",
+  "description": "Create, incrementally update, review, and publish evidence-grounded AI brains from user-approved local work history.",
+  "owner": {
+    "name": "AskRealMe"
+  },
+  "plugins": [
+    {
+      "name": "askrealme",
+      "displayName": "AskRealMe",
+      "description": "Turn approved local work history into a portable brain, merge approved new evidence, review it locally for private information, and upload it with explicit consent.",
+      "version": "1.2.1",
+      "source": "./plugins/askrealme",
+      "category": "productivity",
+      "homepage": "https://www.askreal.me",
+      "repository": "https://github.com/AskRealMe/brain-skills",
+      "keywords": ["create-brain", "ingest-brain", "review-brain", "upload-brain", "privacy", "knowledge-base", "ai-brain"]
+    }
+  ]
+}
