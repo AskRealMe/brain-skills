@@ -22,6 +22,23 @@ Sibling `raw/`, `schema.md`, temporary build artifacts, and workspace README
 files stay local. Preserve every recursive path relative to the uploaded
 directory.
 
+## Always target production; never inspect databases or environments
+
+This skill always uploads to the production AskReal.me server
+(`https://www.askreal.me` and its production API — the uploader's built-in
+defaults). Assume the brain already exists there and is owned by the signed-in
+user. Do NOT try to locate, verify, or diagnose the brain first:
+
+- Never query a database (dev or prod), run Prisma/psql, read connection strings,
+  or check `.env` files to find the brain or confirm its owner.
+- Never probe API routes, check which server is running, or use dev overrides
+  (`ASKREAL_API_URL` / `ASKREAL_SITE_URL`). Just run the uploader with its
+  production defaults.
+- Only precondition to check locally is the `brain_id` in `BRAIN.md` (below). The
+  server does ownership and existence checks itself and returns a clear error if
+  the brain is not found — surface that error to the user rather than
+  investigating it against a database.
+
 ## Preconditions
 
 Root `BRAIN.md` must contain a valid `brain_id` (`^c[a-z0-9]{20,30}$`). If it is
