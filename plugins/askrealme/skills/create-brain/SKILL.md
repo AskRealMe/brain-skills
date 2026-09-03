@@ -20,61 +20,57 @@ creation and incremental ingestion.
 
 ## Inputs
 
-Accept:
+`create-brain` is invoked from the AskReal.me dashboard's "Create new brain"
+flow as:
 
-- **persona**: who the brain answers as, such as "a product builder who
-  delegates software work to AI";
-- **brain scope**: what work or experience the brain covers and what it leaves
-  out;
-- **folder name**: a required name for the local brain workspace. Normalize the
-  owner's answer to lowercase kebab-case.
+```text
+/create-brain "{brain name}" {brain-id}
+```
 
-Treat any non-empty text after the skill command as the represented person,
-verbatim. For example, `/askrealme:create-brain a second-brain craftsperson`
-confirms `a second-brain craftsperson`; do not reinterpret it as a folder name,
-but never treat it as the brain scope. Only explicit text in the current
-invocation or a later owner reply supplies the represented person.
+Parse the arguments as:
 
-Use `AskUserQuestion` for every missing or blocking owner decision in this
-workflow. Do not replace it with a prose question when the tool is available.
-For a missing represented person or folder name, provide exactly two concise,
-contextual examples. The tool's native custom-answer route is the third choice
-and lets the owner type a different answer. Examples and recommendations are
-never implicit selections. A displayed default, timeout, cancellation, or
-empty result is not an answer; ask again and wait.
+- **brain name**: the quoted text (or all text before the final token) — the
+  brain's title, already chosen on the dashboard.
+- **brain-id**: the final whitespace-separated token — the DB brain id (a Prisma
+  cuid like `cmt5cqltx000mw4xrf6rupizj`) that the dashboard created when the user
+  finished naming the brain. **Required.**
 
-If the represented person is missing, ask with `AskUserQuestion`, then end the
-turn. Do not inspect conversation stores, search for an existing workspace,
-read source material, create files, or run any collection command before the
-owner answers.
+If the brain-id is missing, or is not a cuid (`^c[a-z0-9]{20,30}$`), STOP
+immediately: create no files, inspect no sources, run no command. Tell the user
+in a normal message:
 
-After the represented person is confirmed and before proposing or accepting a
-folder name, inspect only the direct child directory names under
-`~/ask-brain/`. Treat a missing `~/ask-brain/` directory as an empty set. Do not
-open any existing brain or inspect its contents during this name check.
+> This can't be processed without a brain-id. Go to
+> https://askreal.me/dashboard, choose "Create new brain" to create it and get
+> your brain-id, then run `/create-brain "{brain name}" {brain-id}`.
 
-If the folder name is missing, use `AskUserQuestion` with two lowercase
-kebab-case examples based on the confirmed description. Exclude every existing
-direct child directory name from both examples. Keep the native custom-answer
-route. Never silently select an example. Normalize the explicit selection or
-custom answer to lowercase kebab-case, compare the normalized result with the
-existing names, then end the turn before discovery. If it matches an existing
-name, do not treat it as a new brain; follow the existing-workspace confirmation
-in the Workspace section on the next turn.
+Then end the turn.
 
-If the brain scope is missing after the represented person and folder name are
-confirmed, use `AskUserQuestion` once to ask what work or experience the brain
-should cover and what it should leave out. Offer exactly two concise contextual
-scope examples, and make each example narrower than the represented person by
-naming both a concrete included area and an excluded area. The native custom-
-answer route lets the owner state a different scope. The explicit selection or
-custom answer is the confirmed brain scope. End the turn before inspecting
-conversation stores or starting discovery. Do not add target-question lists,
-scores, source budgets, clustering, or another scope artifact.
+The brain-id is the only identifier. Never generate, invent, or substitute one.
+Stamp it verbatim into `output/BRAIN.md` as `brain_id:` (see the output
+contract); the `upload-brain` skill uploads to exactly that brain.
 
-In user-facing messages, say "the person this brain represents" instead of
-"persona" and "folder name" instead of "slug". Describe results and the next
-user action without narrating internal script mechanics.
+Still gather the two things the compile needs, using `AskUserQuestion` (its
+native custom-answer route is the third choice; a displayed default, timeout,
+cancellation, or empty result is not an answer — ask again and wait):
+
+- **the person this brain represents** — who it answers as. If it is not already
+  clear from the conversation, ask with exactly two concise contextual examples,
+  then end the turn and wait.
+- **brain scope** — what it covers and leaves out. Ask once with exactly two
+  contextual examples, each narrower than the represented person, naming a
+  concrete included area and an excluded area.
+
+Derive the **folder name** for the local workspace from the brain name
+(lowercase kebab-case). Inspect only the direct child directory names under
+`~/ask-brain/` (a missing directory is an empty set; do not open any existing
+brain). If the derived name collides with an existing child, append a short
+disambiguator or ask for an alternative — never reuse another brain's folder. A
+re-run with the same brain-id refreshes that brain (preserve `raw/`, keep the
+same `brain_id`, increment `version`).
+
+In user-facing messages, say "the person this brain represents" and "folder
+name" (not "persona"/"slug"). Describe results and next actions without
+narrating internal script mechanics.
 
 ## Workspace
 
@@ -119,7 +115,7 @@ explain that the operation will refresh the existing brain and use
 changing it. If the owner chooses a different folder, repeat the direct-child
 name check before accepting the replacement. Preserve
 `raw/`, increment the positive integer `version` in `output/BRAIN.md`, and
-preserve any existing valid `uuid` exactly.
+keep `brain_id` set to the brain-id passed on the command line.
 
 Before discovery or any other write, verify a non-empty existing `raw/`:
 
@@ -393,9 +389,9 @@ entire `output/` tree because short wiki links resolve by stem. Reuse an
 existing page when it represents the same subject; choose a more specific
 human-readable name when two different subjects would collide.
 
-For an existing workspace: preserve a
-valid UUID, increment the version exactly once, and rebuild the output from the
-complete retained set.
+For an existing workspace: keep `brain_id` (the command-line brain-id),
+increment the version exactly once, and rebuild the output from the complete
+retained set.
 
 ## Validation
 

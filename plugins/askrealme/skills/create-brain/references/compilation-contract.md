@@ -96,8 +96,8 @@ contract:
 - write complete public articles, not raw summaries or production notes.
 
 In full mode, compile the complete non-source `output/` tree. Existing pages may be
-rebuilt, but preserve an existing valid UUID and increment the positive integer
-version exactly once.
+rebuilt, but keep `brain_id` (the command-line brain-id) and increment the
+positive integer version exactly once.
 
 In delta mode:
 
@@ -109,8 +109,8 @@ In delta mode:
 3. Create or update only supported source, entity, event, and claim pages. New
    detail about an existing subject belongs on the existing page.
 4. Keep unrelated output pages byte-for-byte unchanged.
-5. Update `BRAIN.md` only as needed to increment the version once, preserve the
-   UUID, reflect a supported synthesis change, and catalog every page once.
+5. Update `BRAIN.md` only as needed to increment the version once, keep the
+   `brain_id`, reflect a supported synthesis change, and catalog every page once.
 6. Update `schema.md` only for a genuinely new recurring page type.
 
 Delta mode must not broaden the represented person or topic without explicit
@@ -125,5 +125,5 @@ Inspect changed content for unsupported causes, actor changes, missing source
 support, unrecorded contradictions, unfair public framing, and links that
 require local raw material.
 
-Report the source IDs read, output pages created or changed, preserved UUID,
+Report the source IDs read, output pages created or changed, the `brain_id`,
 version change, raw verification result, and full output lint result.

@@ -18,11 +18,9 @@ import tempfile
 from pathlib import Path
 
 ROOT_EXEMPT = {"brain"}  # not a page; no orphan check
-BRAIN_FIELDS = {"version", "uuid"}
-UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
-    re.IGNORECASE,
-)
+BRAIN_FIELDS = {"version", "brain_id"}
+# The DB brain id (Prisma cuid) issued by the dashboard, stamped into BRAIN.md.
+BRAIN_ID_RE = re.compile(r"^c[a-z0-9]{20,30}$")
 LOCAL_PATH_RE = re.compile(r"(?<![\w.])(?:\.\./)*raw/")
 EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 PHONE_RE = re.compile(
@@ -158,9 +156,9 @@ def lint(brain_dir: Path) -> list[str]:
         version = brain_fm.get("version")
         if not isinstance(version, str) or not version.isdigit() or int(version) < 1:
             violations.append("BRAIN.md: version must be an integer greater than or equal to 1")
-        uuid = brain_fm.get("uuid")
-        if not isinstance(uuid, str) or UUID_RE.fullmatch(uuid) is None:
-            violations.append("BRAIN.md: uuid must be a UUID v4")
+        brain_id = brain_fm.get("brain_id")
+        if not isinstance(brain_id, str) or BRAIN_ID_RE.fullmatch(brain_id) is None:
+            violations.append("BRAIN.md: brain_id must be the DB brain id (cuid) from the dashboard")
 
     # same stem in more than one type dir: wikilinks resolve by stem alone,
     # so two pages sharing a slug are ambiguous even if their content differs
@@ -211,7 +209,7 @@ def selftest() -> int:
         for d in ("sources", "entities", "events", "claims"):
             (ok / d).mkdir(parents=True)
         (ok / "BRAIN.md").write_text(
-            "---\nversion: 1\nuuid: 550e8400-e29b-41d4-a716-446655440000\n---\n# demo\n\n- [[session-a]] — one\n"
+            "---\nversion: 1\nbrain_id: cmt5cqltx000mw4xrf6rupizj\n---\n# demo\n\n- [[session-a]] — one\n"
             "- [[claude-code]] — tool\n- [[night-fail]] — event\n- [[night-rule]] — claim\n",
             encoding="utf-8",
         )
@@ -238,7 +236,7 @@ def selftest() -> int:
         for d in ("sources", "events", "claims"):
             (bad / d).mkdir(parents=True)
         (bad / "BRAIN.md").write_text(
-            "---\nversion: zero\nuuid: not-a-uuid\nowner: someone\n---\n"
+            "---\nversion: zero\nbrain_id: not-a-cuid\nowner: someone\n---\n"
             "# bad\n\n- [[e1]]\n- [[c1]]\n",
             encoding="utf-8",
         )
@@ -268,7 +266,7 @@ def selftest() -> int:
             "dead wiki link", "undeclared frontmatter fields", "no matching file",
             "does not list the event", "orphan page",
             "raw dump heading", "exceeds", "file-stem collision",
-            "version must be an integer", "uuid must be a UUID v4", "BRAIN.md: undeclared",
+            "version must be an integer", "brain_id must be the DB brain id", "BRAIN.md: undeclared",
         ):
             assert needle in joined, f"missing {needle!r} in:\n{joined}"
 

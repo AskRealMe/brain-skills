@@ -114,12 +114,15 @@ Use only these frontmatter fields:
 ```yaml
 ---
 version: 1
-uuid: 00000000-0000-4000-8000-000000000000
+brain_id: cxxxxxxxxxxxxxxxxxxxxxxxx
 ---
 ```
 
-`version` is required and must be a positive integer. Generate one UUID v4 when
-the brain is first created and preserve it exactly on every refresh.
+`version` is required and must be a positive integer. `brain_id` is the DB brain
+id (a Prisma cuid, e.g. `cmt5cqltx000mw4xrf6rupizj`) that the user created on the
+dashboard and passed to `create-brain`; stamp it verbatim and preserve it
+exactly on every refresh. Do not invent it — if it is missing, `create-brain`
+stops before writing anything.
 
 Write several paragraphs that synthesize the person and topic, followed by a
 directory-grouped catalog containing a link and one-line summary for every
@@ -136,7 +139,7 @@ uploaded.
 The upload gate rejects:
 
 - orphan pages;
-- missing or invalid `version` or UUID v4;
+- missing or invalid `version` or `brain_id` (cuid);
 - dead wiki links and dead frontmatter references;
 - asymmetric `violates` and `violated_by` relations;
 - undeclared event or claim fields;

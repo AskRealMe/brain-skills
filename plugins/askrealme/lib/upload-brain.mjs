@@ -96,14 +96,23 @@ function frontmatterMatch(content) {
   return { bom, body, match };
 }
 
-function uuidFromBrain(content) {
+const BRAIN_ID_RE = /^c[a-z0-9]{20,30}$/u;
+
+function validatedBrainId(value, code = "INVALID_BRAIN_ID") {
+  if (typeof value !== "string" || !BRAIN_ID_RE.test(value)) {
+    fail(code, "A valid brain-id (a Prisma cuid) is required.");
+  }
+  return value;
+}
+
+function brainIdFromBrain(content) {
   const { match } = frontmatterMatch(content);
   if (!match) return null;
-  const lines = [...match[2].matchAll(/^uuid:([^\r\n]*)$/gmu)];
-  if (lines.length > 1) fail("INVALID_BRAIN_FRONTMATTER", "BRAIN.md frontmatter contains more than one UUID.");
+  const lines = [...match[2].matchAll(/^brain_id:([^\r\n]*)$/gmu)];
+  if (lines.length > 1) fail("INVALID_BRAIN_FRONTMATTER", "BRAIN.md frontmatter contains more than one brain_id.");
   if (lines.length === 0) return null;
   const value = lines[0][1].replace(/[ \t]+#[^\r\n]*$/u, "").trim();
-  return validatedUuid(value, "INVALID_BRAIN_FRONTMATTER");
+  return validatedBrainId(value, "INVALID_BRAIN_FRONTMATTER");
 }
 
 function caseFold(value) {
@@ -319,14 +328,14 @@ export async function prepareBrainUpload(brainDir, { expectedFiles } = {}) {
   assertUniqueArchivePaths(files.map((file) => file.relativePath));
   const brainFile = files.find((file) => file.relativePath === "BRAIN.md");
   if (!brainFile) fail("BRAIN_FILE_REQUIRED", "The upload directory requires a root BRAIN.md file.");
-  const uuid = uuidFromBrain(brainFile.content);
-  if (!uuid) fail("BRAIN_UUID_REQUIRED", "BRAIN.md requires the UUID created with this brain.");
+  const brainId = brainIdFromBrain(brainFile.content);
+  if (!brainId) fail("BRAIN_ID_REQUIRED", "BRAIN.md requires the brain_id created on the dashboard.");
   const folderName = path.basename(root) === "output" ? path.basename(path.dirname(root)) : path.basename(root);
   const slug = normalizeSlug(folderName);
   const name = titleFromBrain(brainFile.content.toString("utf8")) || slug;
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
   assertExpectedFilesMatch(files, expectedFiles);
-  const prepared = { brainDir: root, name, slug, uuid, fileCount: files.length, totalBytes, files };
+  const prepared = { brainDir: root, name, slug, brainId, fileCount: files.length, totalBytes, files };
   preparedSnapshots.add(prepared);
   return prepared;
 }
@@ -457,6 +466,23 @@ function resolveApiBase(environment = process.env) {
   return parsed;
 }
 
+// The browser authorization page origin. Overridable for local dogfooding via
+// ASKREAL_SITE_URL, but only when NODE_ENV is development or test — mirrors the
+// ASKREAL_API_URL contract so the auth page and the upload target the same env.
+function resolveSiteBase(environment = process.env) {
+  const override = typeof environment.ASKREAL_SITE_URL === "string" ? environment.ASKREAL_SITE_URL.trim() : "";
+  if (override && !new Set(["development", "test"]).has(environment.NODE_ENV)) fail("SITE_OVERRIDE_NOT_ALLOWED", "ASKREAL_SITE_URL is allowed only when NODE_ENV is development or test.");
+  let parsed;
+  try {
+    parsed = new URL(override || PUBLIC_SITE_URL);
+  } catch (error) {
+    fail("INVALID_SITE_URL", "ASKREAL_SITE_URL is not a valid URL.", { cause: error });
+  }
+  if (!new Set(["http:", "https:"]).has(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) fail("INVALID_SITE_URL", "ASKREAL_SITE_URL must be an HTTP(S) URL without credentials, a query, or a fragment.");
+  parsed.pathname = parsed.pathname.replace(/\/+$/u, "");
+  return parsed;
+}
+
 export function resolveDraftEndpoint(environment = process.env) {
   const parsed = resolveApiBase(environment);
   const basePath = parsed.pathname === "/" ? "" : parsed.pathname;
@@ -470,11 +496,11 @@ export function resolveDraftStatusEndpoint(uuid, environment = process.env) {
   return parsed.toString();
 }
 
-export function resolveBrainArchiveEndpoint(uuid, environment = process.env) {
-  const normalizedUuid = validatedUuid(uuid, "INVALID_UUID");
+export function resolveBrainUploadEndpoint(brainId, environment = process.env) {
+  const normalizedId = validatedBrainId(brainId, "INVALID_BRAIN_ID");
   const parsed = resolveApiBase(environment);
   const basePath = parsed.pathname === "/" ? "" : parsed.pathname;
-  parsed.pathname = `${basePath}/brains/${normalizedUuid}/archive`;
+  parsed.pathname = `${basePath}/brains/${normalizedId}/upload`;
   return parsed.toString();
 }
 
@@ -568,90 +594,54 @@ export async function getDraftStatus(uuid, {
   return { status, ...confirmLocation(normalizedUuid), ...(payload.expiresAt ? { expiresAt: payload.expiresAt } : {}) };
 }
 
-function commonUploadResult(prepared, uuid, mode) {
-  return { mode, uuid, name: prepared.name, slug: prepared.slug, fileCount: prepared.fileCount, totalBytes: prepared.totalBytes };
+function commonUploadResult(prepared, brainId, mode) {
+  return { mode, brainId, name: prepared.name, slug: prepared.slug, fileCount: prepared.fileCount, totalBytes: prepared.totalBytes };
 }
 
-async function postPreparedBrain({ prepared, fetchImpl, environment, timeoutMs, uploadAuthorization, draftStatus }) {
+async function postPreparedBrain({ prepared, fetchImpl, environment, timeoutMs, uploadAuthorization }) {
   if (typeof fetchImpl !== "function") fail("FETCH_UNAVAILABLE", "This Node.js runtime does not provide fetch.");
   if (!prepared || typeof prepared !== "object" || !preparedSnapshots.has(prepared)) fail("INVALID_PREPARED_UPLOAD", "A snapshot created by prepareBrainUpload is required.");
   validateTimeout(timeoutMs);
-  if (draftStatus !== undefined && !new Set(["missing", "pending", "claimed", "expired"]).has(draftStatus)) {
-    fail("INVALID_DRAFT_STATUS", "The supplied Brain status is invalid.");
-  }
-  const remote = uploadAuthorization
-    ? { status: "claimed" }
-    : draftStatus
-      ? { status: draftStatus, ...confirmLocation(prepared.uuid) }
-      : await getDraftStatus(prepared.uuid, { fetchImpl, environment, timeoutMs });
-  if (!uploadAuthorization && remote.status === "claimed") {
-    fail("AUTH_REQUIRED", "Updating an existing brain requires a one-use upload authorization.");
-  }
-  if (remote.status === "pending") {
-    fail("DRAFT_PENDING", `This brain is already uploaded and waiting for ownership confirmation: ${remote.confirmUrl}`);
-  }
-  const updating = remote.status === "claimed";
-  const uploadCode = updating ? validateUploadCode(uploadAuthorization) : null;
+  // The brain already exists in the DB (created from the dashboard) and is owned
+  // by the signed-in user. A one-use, browser-authorized upload code is always
+  // required; the upload targets PUT /brains/{brain-id}/upload.
+  const uploadCode = validateUploadCode(uploadAuthorization);
   const archive = buildBrainZip(prepared);
   const form = new FormData();
   form.append("name", prepared.name);
   form.append("slug", prepared.slug);
-  form.append("archive", new Blob([archive], { type: "application/zip" }), "brain.zip");
-  const endpoint = updating ? resolveBrainArchiveEndpoint(prepared.uuid, environment) : resolveDraftEndpoint(environment);
+  form.append("file", new Blob([archive], { type: "application/zip" }), "brain.zip");
+  const endpoint = resolveBrainUploadEndpoint(prepared.brainId, environment);
   const { response, payload } = await fetchWithTimeout(fetchImpl, endpoint, {
-    method: updating ? "PUT" : "POST",
+    method: "PUT",
     body: form,
     redirect: "error",
-    ...(uploadCode ? { headers: { Authorization: `UploadCode ${uploadCode}` } } : {}),
+    headers: { Authorization: `UploadCode ${uploadCode}` },
   }, timeoutMs);
   if (!response.ok) {
     const candidate = typeof payload.message === "string" ? payload.message : "";
-    const serverMessage = uploadCode && candidate.includes(uploadCode) ? "Upload authorization failed." : candidate || "The upload failed.";
+    const serverMessage = candidate.includes(uploadCode) ? "Upload authorization failed." : candidate || "The upload failed.";
     fail("HTTP_ERROR", serverMessage, { status: response.status });
   }
   if (payload.success !== true || payload.fileCount !== prepared.fileCount) fail("INVALID_RESPONSE", "The upload response does not match the requested files.", { status: response.status });
-  const responseUuid = validatedUuid(payload.uuid);
-
-  if (updating) {
-    if (payload.mode !== "updated") fail("INVALID_RESPONSE", "The existing-brain upload response has an invalid mode.");
-    if (responseUuid !== prepared.uuid) fail("UUID_MISMATCH", "The existing BRAIN.md UUID does not match the server response UUID.");
-    if (
-      Object.hasOwn(payload, "expiresAt")
-      || Object.hasOwn(payload, "confirmPath")
-      || Object.hasOwn(payload, "confirmUrl")
-      || Object.hasOwn(payload, "signinPath")
-      || Object.hasOwn(payload, "signinUrl")
-    ) fail("INVALID_RESPONSE", "An existing-brain upload response must not contain confirmation details.");
-    return commonUploadResult(prepared, responseUuid, "updated");
-  }
-
-  if (payload.mode !== "created" || typeof payload.expiresAt !== "string" || Number.isNaN(Date.parse(payload.expiresAt))) fail("INVALID_RESPONSE", "The new-brain upload response is invalid.", { status: response.status });
-  if (responseUuid !== prepared.uuid) fail("UUID_MISMATCH", "BRAIN.md UUID does not match the server response UUID.");
-  const expectedConfirm = confirmLocation(responseUuid);
-  if (payload.confirmPath !== expectedConfirm.confirmPath) fail("INVALID_RESPONSE", "The upload response confirmPath is invalid.");
-  let confirmUrl;
-  try {
-    confirmUrl = new URL(payload.confirmUrl).toString();
-  } catch {
-    fail("INVALID_RESPONSE", "The upload response confirmUrl is invalid.");
-  }
-  if (confirmUrl !== expectedConfirm.confirmUrl) fail("INVALID_RESPONSE", "The upload response confirmUrl is invalid.");
-  return { ...commonUploadResult(prepared, responseUuid, "created"), expiresAt: payload.expiresAt, ...expectedConfirm };
+  if (payload.mode !== "uploaded") fail("INVALID_RESPONSE", "The upload response has an invalid mode.");
+  if (validatedBrainId(payload.brainId) !== prepared.brainId) fail("BRAIN_ID_MISMATCH", "The server response brain-id does not match BRAIN.md.");
+  return commonUploadResult(prepared, prepared.brainId, "uploaded");
 }
 
 /** Upload a prepared ZIP snapshot without reading its source directory again. */
 export async function uploadPreparedBrain(options = {}) {
   rejectRawCredential(options);
-  const { prepared, fetchImpl = globalThis.fetch, environment = process.env, timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS, uploadAuthorization, draftStatus } = options;
-  return postPreparedBrain({ prepared, fetchImpl, environment, timeoutMs, uploadAuthorization, draftStatus });
+  const { prepared, fetchImpl = globalThis.fetch, environment = process.env, timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS, uploadAuthorization } = options;
+  return postPreparedBrain({ prepared, fetchImpl, environment, timeoutMs, uploadAuthorization });
 }
 
-/** Prepare and upload a brain directory. Existing UUID uploads require an upload authorization. */
+/** Prepare and upload a brain directory to its dashboard-created brain-id. Requires an upload authorization. */
 export async function uploadBrain(options = {}) {
   rejectRawCredential(options);
-  const { brainDir, expectedFiles, fetchImpl = globalThis.fetch, environment = process.env, timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS, uploadAuthorization, draftStatus } = options;
+  const { brainDir, expectedFiles, fetchImpl = globalThis.fetch, environment = process.env, timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS, uploadAuthorization } = options;
   const prepared = await prepareBrainUpload(brainDir, { expectedFiles });
-  return uploadPreparedBrain({ prepared, fetchImpl, environment, timeoutMs, uploadAuthorization, draftStatus });
+  return uploadPreparedBrain({ prepared, fetchImpl, environment, timeoutMs, uploadAuthorization });
 }
 
 function secureEqual(left, right) {
@@ -661,8 +651,8 @@ function secureEqual(left, right) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-function setCors(request, response) {
-  response.setHeader("Access-Control-Allow-Origin", PUBLIC_SITE_URL);
+function setCors(request, response, allowOrigin = PUBLIC_SITE_URL) {
+  response.setHeader("Access-Control-Allow-Origin", allowOrigin);
   response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
   response.setHeader("Vary", "Origin");
@@ -740,10 +730,13 @@ export async function openAuthorizationUrl(url, {
 }
 
 /** Obtain a one-use upload authorization through a short-lived loopback callback. */
-export async function requestUploadAuthorization({ uuid, openBrowserImpl = openAuthorizationUrl, timeoutMs = AUTH_HANDOFF_TIMEOUT_MS, stderr = process.stderr } = {}) {
-  const normalizedUuid = validatedUuid(uuid, "INVALID_UUID");
+export async function requestUploadAuthorization({ brainId, openBrowserImpl = openAuthorizationUrl, timeoutMs = AUTH_HANDOFF_TIMEOUT_MS, stderr = process.stderr } = {}) {
+  const normalizedId = validatedBrainId(brainId, "INVALID_BRAIN_ID");
   validateTimeout(timeoutMs, "INVALID_AUTH_TIMEOUT");
   const state = randomBytes(32).toString("hex");
+  // The authorization page's browser Origin: prod https://www.askreal.me, or the
+  // dev site (http://localhost:3000) when ASKREAL_SITE_URL is set in dev/test.
+  const siteOrigin = resolveSiteBase().origin;
   let settle;
   const authorizationPromise = new Promise((resolve, reject) => { settle = { resolve, reject }; });
   let settled = false;
@@ -761,11 +754,11 @@ export async function requestUploadAuthorization({ uuid, openBrowserImpl = openA
       response.writeHead(404).end();
       return;
     }
-    if (request.headers.origin !== PUBLIC_SITE_URL) {
+    if (request.headers.origin !== siteOrigin) {
       response.writeHead(403).end();
       return;
     }
-    setCors(request, response);
+    setCors(request, response, siteOrigin);
     if (request.method === "OPTIONS") {
       response.writeHead(204).end();
       return;
@@ -794,10 +787,13 @@ export async function requestUploadAuthorization({ uuid, openBrowserImpl = openA
   });
   const address = server.address();
   const callback = `http://127.0.0.1:${address.port}/callback`;
-  const authorizationUrl = new URL("/upload-authorize", PUBLIC_SITE_URL);
-  authorizationUrl.searchParams.set("brainId", normalizedUuid);
+  const authorizationUrl = new URL("/upload-authorize", resolveSiteBase().href);
+  authorizationUrl.searchParams.set("brainId", normalizedId);
   authorizationUrl.searchParams.set("callback", callback);
   authorizationUrl.searchParams.set("state", state);
+  // Always surface the URL so it can be opened manually (headless/SSH, or when
+  // the auto-opened tab was lost). The state is single-use and short-lived.
+  stderr.write(`Authorize this upload in your browser:\n${authorizationUrl.toString()}\n`);
   const timer = setTimeout(() => finish(new UploadBrainError("AUTH_TIMEOUT", "Browser authorization timed out.")), timeoutMs);
   try {
     let opened = false;
@@ -818,13 +814,8 @@ async function runCli() {
   const [brainDir, ...extra] = process.argv.slice(2);
   if (!brainDir || extra.length > 0) fail("USAGE", "Usage: node upload-brain.mjs <absolute-brain-directory>");
   const prepared = await prepareBrainUpload(brainDir);
-  const remote = await getDraftStatus(prepared.uuid);
-  if (remote.status === "pending") {
-    process.stdout.write(`${JSON.stringify({ mode: "pending", uuid: prepared.uuid, ...remote }, null, 2)}\n`);
-    return;
-  }
-  const uploadAuthorization = remote.status === "claimed" ? await requestUploadAuthorization({ uuid: prepared.uuid }) : undefined;
-  const result = await uploadPreparedBrain({ prepared, uploadAuthorization, draftStatus: remote.status });
+  const uploadAuthorization = await requestUploadAuthorization({ brainId: prepared.brainId });
+  const result = await uploadPreparedBrain({ prepared, uploadAuthorization });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
