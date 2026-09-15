@@ -11,30 +11,14 @@ the [output contract](output-contract.md) before changing `output/`.
 ## Normalize each conversation at the source boundary
 
 One source ID identifies one upstream conversation or one retained
-owner-supplied document. Read each upstream conversation exactly once through
-`collect_raw.py read --normalized-output`. The command stages the exact
-canonical normalized JSONL and renders those same events to the worker without
-exposing native bytes.
-
-Partition discovered conversations into batches of at most 20 sources. Start
-one background relevance worker for every batch; 274 sources require 14
-workers. Never give more than 20 sources to one worker or fall back to one
-worker for the complete corpus. Give every worker the exact owner-confirmed
-brain scope. Each worker owns only its assigned IDs, reads their normalized
-events, and returns one independent relevant/irrelevant decision with a
-grounded reason per ID. Delete an irrelevant source's staged JSONL. A source
-outside the confirmed scope is irrelevant. Workers must not rank, score,
-sample, or prefilter the corpus. Each worker validates exact decision coverage
-for its own batch and immediately retains its relevant staged JSONL
-sequentially without reopening or reparsing the upstream session.
-`retain` uses a cross-process lock only for the shared `raw/index.jsonl` update,
-so different workers can retain concurrently without losing records. After each
-retain, that same worker writes the matching final source page directly from the
-normalized events already in its context. It must not call `read --raw` for
-source creation. The parent does not rejudge decisions, retain sources, or
-create conversation source pages; after all workers finish it checks only
-complete ID, retained-record, and source-page accounting. Never use native file
-size to form a batch or relevance decision.
+owner-supplied document. In full mode, follow the prepare, worker, and check
+commands in `SKILL.md`. Their assignment files define exclusive ownership;
+do not calculate batches or generate collection code independently. Workers
+follow `relevance-worker.md` and read staged normalized events once. They
+retain relevant events and immediately write matching final source pages.
+The parent checks accounting with the bundled command and owns cleanup.
+Native size is never a relevance or batching signal. Normalized size is only
+scheduling data. Never score, sample, or prefilter in place of semantic review.
 
 - **Full mode (`create-brain`)**: inspect each newly discovered upstream source.
 - **Delta mode (`ingest-brain`)**: use only the exact new source IDs supplied or
@@ -73,15 +57,14 @@ the same single-read flow. Record the command, commit identifier, URL, or other
 locator in the local source itself. Do not paste unindexed command output
 directly into output pages.
 
-## Synthesize from retained raw and final source pages
+## Synthesize from final source pages
 
-After every relevant record has its final source page and owner document choices
-are complete, pair each source page with its indexed normalized raw record. Read
-the raw side only through `read --raw`, and read the matching source page alongside
-it to synthesize the rest of the wiki. Do not begin this compilation while any
-relevance worker, retain, source-page write, retry, or owner document decision is
-unfinished. Do not reopen upstream originals. Use the page contracts in the output
-contract:
+After all workers and owner document choices finish and accounting passes,
+read the completed source pages to synthesize the rest of the wiki. Do not
+reread the complete retained raw corpus or reopen upstream originals. When a
+source page lacks evidence for a proposed fact, omit that fact or resolve the
+specific source deficiency; never fill it from plausibility. Use the page
+contracts in the output contract:
 
 - create one `sources/<source-id>.md` page for each retained raw record;
 - allow one source page to cover multiple records only for one coherent

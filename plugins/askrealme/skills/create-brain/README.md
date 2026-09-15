@@ -64,11 +64,14 @@ is retained in `raw/`, and the worker writes exactly one matching public source
 page from the same in-context normalized events. The upstream conversation is
 not reopened for source generation, and no digest or card files exist.
 
-Each semantic worker attempt stops at ten minutes. A timed-out oversized session
-is split at normalized event boundaries for parallel evidence extraction, then
-reduced back to one session-level decision and one source page. Workers never
-perform staging cleanup; the parent removes explicit temporary JSONL paths with
-a 60-second command limit.
+Preparation and accounting use the bundled `scripts/build_session.py` commands.
+The caller supplies approved directories and scope; it does not author code.
+Preparation deduplicates IDs before normalization and assigns each source to
+one worker. Fixed worker instructions define decisions and output ownership.
+The parent checks exact accounting before cleanup and synthesis. Failure and
+time limits follow `SKILL.md`; missing evidence never becomes a silent success.
+Synthesis reads final source pages instead of rereading the full raw corpus.
+Completion includes content inspection and repairs, with elapsed time reported.
 
 ## One compiler, two source scopes
 

@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Treat non-empty command arguments as the person the brain represents; otherwise collect required owner decisions with AskUserQuestion before discovery. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Run bundled preparation and accounting commands; use AI for relevance decisions and grounded writing. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -11,7 +11,19 @@ confirms what the brain covers and leaves out before discovery. Each useful
 answer must pair a reproducible practice with the real incident that produced
 it.
 
-The workflow has four stages: discover, collect, compile, and validate.
+The workflow has four stages: ingest, distill, curate, and publish.
+
+For a normal build, execute the bundled commands without creating or editing
+scripts. Do not inspect tests, other brains, development verification skills,
+or workflow-authoring guides to prepare a build. Investigate implementation
+only when a command reports an error. Required host runtime instructions still
+apply. Keep discovery JSON and temporary run files outside `output/`.
+
+Record the invocation time and source-selection completion time. The target
+is 15 minutes after selection, including content inspection and repairs, and
+20 minutes including initial choices. This is a measured target, not a
+guarantee for arbitrary input. Never omit evidence or skip checks to meet it.
+Report a missed target and unresolved IDs explicitly.
 
 Read [the output contract](references/output-contract.md) and
 [the writing contract](references/writing-contract.md) before compiling. They
@@ -131,15 +143,16 @@ with `askrealme-normalized-session-v1` records.
 
 ## 1. Discover and choose source directories
 
+Set `DISCOVERY` to an absolute temporary JSON file path outside `output/`.
 After the represented person, folder name, and brain scope are confirmed,
 list native conversation originals from every locally supported self-contained store without copying them:
 
 ```bash
 python3 "$SKILL_DIR/scripts/collect_raw.py" discover \
-  --raw "$BRAIN_ROOT/raw"
+  --raw "$BRAIN_ROOT/raw" > "$DISCOVERY"
 ```
 
-Do not read conversation bodies yet. Group the discovery result by work
+Read the JSON metadata in `$DISCOVERY`. Do not read conversation bodies yet. Group the discovery result by work
 directory, rank the groups by session count, and show only the first 20 rows as
 one Markdown table with these columns: number, session count, sources, and
 directory. Render this table in the normal assistant response before invoking
@@ -182,145 +195,79 @@ formats that it could not normalize independently, report each count as an
 unsupported local source type. Do not silently replace those records with an
 incomplete or invented export format.
 
-Before creating relevance workers, normalize every approved source exactly once
-into temporary JSONL without placing its rendered content in the parent's model
-context. Use `read --normalized-output` and discard its standard output. Record
-only each staged file's source ID, path, and byte count for scheduling. This
-byte count describes the canonical normalized input the worker will actually
-read; use it only to balance work, never to decide relevance or exclude a
-source.
+### Prepare the approved sources
 
-Partition the staged files with both limits: at most 20 sources and at most
-1,572,864 normalized bytes (1.5 MiB) per batch. Use greedy size-balanced
-packing so one worker can process several small sessions without receiving all
-the largest sessions. A single staged session larger than 1.5 MiB forms an
-oversized batch by itself and is still reviewed. Create one background
-relevance worker for every batch and start all workers immediately. Do not
-reduce the worker count, delegate the complete corpus to one worker, or process
-relevance in the parent. If any required worker cannot be created, stop and
-report the failed batch instead of falling back to a larger or sequential
-worker.
+**Input:** `$DISCOVERY`, `$BRAIN_ROOT`, the confirmed scope, and each exact
+selected directory. Do not include unselected directories.
 
-Every relevance worker attempt has a hard ten-minute wall-clock limit. The
-parent monitors elapsed time and interrupts an unfinished worker at ten minutes;
-do not leave it running while waiting for other batches. Preserve completed IDs
-and mark only unfinished IDs for retry. Split a timed-out ordinary batch into
-smaller size-balanced batches and retry those IDs once. If a retry also reaches
-ten minutes, report those IDs as failed and block compilation instead of
-starting an unbounded retry loop.
-
-Give each worker the confirmed brain scope and an explicit, exclusive list of
-source IDs and their discovery metadata. A worker must not inspect another
-batch or load the complete corpus.
-The parent stages each upstream source with this command exactly once:
+**Command:** run the bundled helper once, repeating `--directory` for each
+selected directory. Pass the confirmed scope as one quoted argument.
 
 ```bash
-python3 "$SKILL_DIR/scripts/collect_raw.py" read \
-  --id "<source-id>" \
-  --path "<original-path>" \
-  --provider "<provider>" \
-  --cwd "<work-directory>" \
-  --normalized-output "<temporary-path>/<source-id>.jsonl" \
-  > /dev/null
+python3 "$SKILL_DIR/scripts/build_session.py" prepare \
+  --discovery "$DISCOVERY" \
+  --brain "$BRAIN_ROOT" \
+  --directory "<selected-absolute-directory>" \
+  --scope "<confirmed included and excluded work>"
 ```
 
-Within its batch, the worker reads only its assigned staged normalized JSONL
-files. It must not invoke `read` on the upstream source or open the native
-original. Give each worker the output and writing contracts exactly once; do
-not duplicate either contract in its prompt or context.
+**Result:** JSON containing `run`, `assignments`, `failures`, preparation time,
+and `next`. The helper verifies existing raw, filters approved directories,
+rejects conflicting duplicate IDs, deduplicates identical IDs, and normalizes
+once through the existing collector. It packs temporary assignments within
+the script's count and normalized-byte limits. Oversized sources receive an
+exclusive assignment. No source is excluded based on its size.
 
-Each worker owns its batch through retention. It must produce exactly one
-decision per assigned source ID: `relevant` or `irrelevant`, plus one grounded
-sentence explaining why. Before writing, the worker validates exact ID coverage
-and rejects missing, duplicate, or nonstandard decisions. It retries its own
-invalid batch without blocking other workers. Judge every source independently.
-Treat a source as relevant only when it is inside the confirmed brain scope and
-its evidence would materially improve the brain's ability to give a useful
-first-person answer grounded in the represented person's actual experience.
-Topical overlap alone is not relevance; if removing the source would not
-meaningfully weaken any supported answer, mark it irrelevant.
-Do not let another source supply missing evidence. Do not rank, score, sample,
-or prefilter the corpus; keyword frequency, native or normalized file size, path
-names, and corpus-wide statistics cannot replace semantic review.
+**Next:** if the command fails, read the reported error; do not launch workers
+or compile. Preserve the run for diagnosis instead of silently dropping failed
+IDs or repeatedly normalizing successful sources. On success, set `RUN` to the
+returned absolute path and launch the assignments below. Preparation creates
+no public pages and retains no conversation.
 
-Immediately after deciding one source, leave its staged JSONL for parent-owned
-cleanup. When it is relevant, run `retain` with the staged JSONL and then use
-the normalized events still visible in the worker context to write exactly one
-final `output/sources/<source-id>.md` page. Do not call `read --raw` to create the
-source page. The source page and retained record must describe the same staged
-events. Each worker writes only source pages for its exclusively assigned IDs,
-so these writes remain parallel and never collide.
+### Run the assigned workers
 
-Workers must not wait for the parent, finish the complete batch, or wait for
-other batches before writing a relevant source. `retain` validates and stores
-the staged canonical JSONL; it does not parse or reopen the upstream session.
-It serializes only the shared `raw/index.jsonl` update with a cross-process
-lock, so workers may retain concurrently without losing index records.
-`retain` is idempotent by source ID and never copies the native session:
+**Input:** each returned assignment path and the fixed
+[worker instructions](references/relevance-worker.md).
+
+**Action:** start one background AI worker per assignment. Use this prompt,
+substituting only the two absolute paths; do not write a new instruction file:
+
+> Read <absolute SKILL_DIR>/references/relevance-worker.md and follow it for
+> <absolute assignment path>. Own only that assignment. Return the result path
+> and any failed IDs.
+
+**Result:** one JSON decision list at each assignment's `result` path, retained
+normalized evidence for relevant IDs, and their final source pages.
+
+**Next:** monitor workers through the host's background task tool with waits
+of at most 60 seconds. Check elapsed time against the overall target. If a
+worker fails to launch, report its assignment and stop progression. Interrupt
+an unfinished worker after five minutes; preserve completed files and report
+its unfinished assignment. Do not automatically start another full attempt or
+split-and-retry chain. A failed or missing decision blocks compilation; it is
+not an irrelevant source. A later explicit recovery uses the existing staged
+files and retries only unfinished IDs after checking that no worker still owns
+them. Never reopen upstream originals for recovery.
+
+### Check decisions and clean temporary inputs
+
+**Input:** the returned `$RUN` directory.
 
 ```bash
-python3 "$SKILL_DIR/scripts/collect_raw.py" retain \
-  --id "<source-id>" \
-  --path "<original-path>" \
-  --provider "<provider>" \
-  --cwd "<work-directory>" \
-  --normalized "<worker-temporary-path>/<source-id>.jsonl" \
-  --output "$BRAIN_ROOT/raw"
+python3 "$SKILL_DIR/scripts/build_session.py" check --run "$RUN" --cleanup
 ```
 
-If source writing or retain fails, report that ID as failed and leave
-compilation blocked; retry only that ID. Do not reread the upstream source,
-reread retained raw for source creation, create a digest file, or create an
-intermediate card. The index may keep the upstream path as provenance, but
-neither retain nor source generation may reopen that path.
+**Result:** `passed`, `errors`, elapsed seconds, and `next`. The command checks
+exact per-assignment and overall ID coverage, duplicate decisions, valid
+statuses and reasons, relevant raw/page pairs, irrelevant artifacts, and raw
+integrity. It removes only this run's staged JSONL after accounting passes;
+assignment and result metadata remain outside public output for diagnosis.
 
-If an oversized single-session worker reaches ten minutes, interrupt it without
-retaining a partial result or writing a partial source page. Split its staged
-normalized JSONL into contiguous event windows:
-
-```bash
-python3 "$SKILL_DIR/scripts/collect_raw.py" split-normalized \
-  --input "<temporary-path>/<source-id>.jsonl" \
-  --output-dir "<temporary-path>/<source-id>-windows" \
-  --max-bytes 1572864
-```
-
-Start one evidence worker per window immediately. A window worker reads only
-its window and returns the source ID, event range, whether the window contains
-in-scope evidence, and concise grounded findings. It must not call `retain` or
-write a source page. After all windows finish, one reducer receives only their
-structured findings and makes exactly one `relevant` or `irrelevant` decision
-for the original source ID. If relevant, the reducer retains the original
-unsplit staged JSONL and writes exactly one
-`output/sources/<source-id>.md` page. Window files are temporary processing
-units, never raw records or source pages. Window workers and the reducer each
-have the same hard ten-minute limit; a timeout is a failed source, not a reason
-for recursive splitting.
-
-After processing its batch, each worker reports its relevant, irrelevant,
-retained, source-page, and failed IDs to the parent. The parent does not reread
-sessions, rejudge relevance, perform retain operations, or create conversation
-source pages. After every worker and retry finishes, the parent checks only
-final accounting: every approved ID appears exactly once as relevant,
-irrelevant, or explicitly failed, and every relevant ID without failure has
-both one retained normalized record and exactly one matching source page named
-`<source-id>.md`. Grouping multiple conversations into one source page fails
-accounting. Do not remove valid records or source pages written by workers. Do
-not begin compilation until
-this accounting passes and all owner-supplied document choices are complete.
-After this pass, `raw/` contains only relevant normalized conversations and
-`output/sources/` contains their final public source pages.
-
-Workers never delete staged files or window files. After accounting, the parent
-invokes `cleanup-staged` with the exact temporary JSONL paths and gives that
-deterministic command at most 60 seconds. If cleanup times out or fails, report
-the leftover temporary paths but do not keep a semantic worker alive:
-
-```bash
-python3 "$SKILL_DIR/scripts/collect_raw.py" cleanup-staged \
-  --path "<temporary-jsonl-path>" \
-  --path "<another-temporary-jsonl-path>"
-```
+**Next:** proceed only when `passed` is true and owner document choices are
+complete. On failure, repair only reported IDs using their existing staged
+input, then rerun this command. Do not generate accounting or cleanup code.
+Do not rejudge relevance, retain conversations, or rewrite worker source pages
+in the parent. Keep all valid records and source pages.
 
 ## 2. Add owner-supplied originals
 
@@ -370,12 +317,11 @@ Fix missing files, hash mismatches, duplicate IDs, unindexed files, and derived
 artifacts before continuing. If the index is empty, stop and ask the owner to
 add at least one source before compilation.
 
-## 3. Synthesize the brain from retained raw and final source pages
+## 3. Curate and publish from final source pages
 
 Apply the [compilation contract](references/compilation-contract.md) and the
-[output contract](references/output-contract.md). For each retained source ID,
-read its normalized record through `read --raw` together with its matching final
-page in `output/sources/`. Use these pairs to write or update `entities/`,
+[output contract](references/output-contract.md). Read the completed pages in `output/sources/`. Do not reread every retained
+conversation to synthesize the wiki. Use these source pages to write or update `entities/`,
 `events/`, `claims/`, and `BRAIN.md`. Do not reopen upstream conversation
 originals or create another intermediate format.
 
@@ -417,6 +363,9 @@ inspect the content directly for:
 
 Report:
 
+- invocation and selection timestamps, preparation time, worker completion time,
+  and content-inspection/repair completion time; report total and post-selection
+  elapsed time and whether the targets were met;
 - the absolute path to `output/`;
 - the page count for each type and the retained source count;
 - both validation commands and whether they passed;
