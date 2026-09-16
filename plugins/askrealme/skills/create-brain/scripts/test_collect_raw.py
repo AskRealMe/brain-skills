@@ -460,7 +460,87 @@ def main() -> None:
         manual.write_text("# changed after indexing\n", encoding="utf-8")
         failed = invoke(home, "verify", "--output", str(raw))
         assert failed.returncode == 1 and "sha256 mismatch" in failed.stdout, failed.stdout
+    check_progress()
     print("ok")
+
+
+def progress_state(workspace: Path, *args: str) -> dict:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "progress", "--workspace", str(workspace), "--json", *args],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    return json.loads(result.stdout)
+
+
+def check_progress() -> None:
+    """One 0-100% bar for the whole build: contiguous bands, no backwards step,
+    no early 100, and a skipped stage that collapses instead of jumping."""
+    with tempfile.TemporaryDirectory() as tmp:
+        workspace = Path(tmp) / "brain"
+        (workspace / "raw").mkdir(parents=True)
+        (workspace / "output" / "entities").mkdir(parents=True)
+        (workspace / "output" / "claims").mkdir(parents=True)
+
+        start = progress_state(workspace, "--mode", "create", "--approved", "20", "--stage", "discover")
+        assert start["percent"] == 0.0, start
+        assert (workspace / ".progress.json").is_file(), "state must sit outside raw/ and output/"
+        assert not (workspace / "raw" / ".progress.json").exists(), "state in raw/ would fail verify"
+        assert not (workspace / "output" / ".progress.json").exists(), "state in output/ would upload"
+
+        half = progress_state(workspace, "--stage", "relevance", "--judged", "10")
+        assert 20 < half["percent"] < 30, half
+        later = progress_state(workspace, "--judged", "18")
+        assert later["percent"] > half["percent"], "a real advance must move the bar"
+
+        # Monotonic: a recount that would retreat is ignored. A bar going
+        # backwards reads as a fault even when the newer number is better.
+        recount = progress_state(workspace, "--judged", "2")
+        assert recount["percent"] == later["percent"], recount
+
+        # Synthesis approaches its ceiling and never reaches it early, however
+        # wrong the pages-per-source estimate turns out to be.
+        (workspace / "raw" / "index.jsonl").write_text(
+            '{"id":"a","raw_path":"claude/a.jsonl"}\n', encoding="utf-8"
+        )
+        for index in range(200):
+            (workspace / "output" / "claims" / f"c{index}.md").write_text("x", encoding="utf-8")
+        flooded = progress_state(workspace, "--stage", "synthesis")
+        assert flooded["percent"] < 90.0, f"synthesis must stay inside its band: {flooded}"
+
+        # Only the completion report is allowed to print 100.
+        assert progress_state(workspace, "--stage", "validate")["percent"] < 100.0
+        assert progress_state(workspace, "--stage", "done")["percent"] == 100.0
+
+    # A stage that does not run collapses to zero width, so the bar walks past
+    # it instead of parking at its lower bound and then leaping.
+    with tempfile.TemporaryDirectory() as tmp:
+        workspace = Path(tmp) / "docs-only"
+        (workspace / "raw").mkdir(parents=True)
+        (workspace / "output").mkdir(parents=True)
+        before = progress_state(workspace, "--mode", "documents", "--stage", "discover")
+        skipped = progress_state(workspace, "--stage", "relevance", "--judged", "0")
+        after = progress_state(workspace, "--stage", "synthesis")
+        assert before["percent"] < skipped["percent"] == after["percent"], (before, skipped, after)
+
+    # Whatever the weights, the first band starts at 0 and the last ends at 100.
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("collect_raw", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for mode in module.PROGRESS_WEIGHTS:
+        bands = module.progress_bands(mode)
+        assert bands[module.PROGRESS_STAGES[0]][0] == 0.0, mode
+        assert abs(bands["validate"][1] - 100.0) < 1e-9, mode
+        previous = 0.0
+        for stage in module.PROGRESS_STAGES[:-1]:
+            low, high = bands[stage]
+            assert abs(low - previous) < 1e-9, f"{mode}: {stage} band is not contiguous"
+            assert high >= low, f"{mode}: {stage} band is inverted"
+            previous = high
 
 
 if __name__ == "__main__":

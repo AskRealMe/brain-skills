@@ -150,6 +150,26 @@ test("every owner question ships with its literal wording", async () => {
     assert.ok(skill.includes(banned), `banned-word list must still name ${banned}`);
   }
   assert.match(skill, /Never narrate what you are about to do/);
+
+  // A waiting question must be impossible to mistake for build output.
+  assert.match(skill, /YOUR INPUT NEEDED/);
+  assert.match(skill, /Announce every question in the normal response, immediately before you invoke\s*\n?the tool/);
+});
+
+test("one progress bar spans the whole build", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+
+  assert.match(skill, /## Showing progress/);
+  assert.match(skill, /runs 0-100% across the whole build/);
+  assert.match(skill, /never restarts per stage and\s*\n?never goes backwards/);
+  // Every checkpoint the skill must call, so a stage cannot silently stall.
+  for (const stage of ["discover", "relevance", "synthesis", "validate", "done"]) {
+    assert.ok(skill.includes(`--stage ${stage}`), `missing progress checkpoint: ${stage}`);
+  }
+  // The script owns the arithmetic; improvised percentages are what make a bar
+  // stall at one number and then leap.
+  assert.match(skill, /Never compute, round, or adjust the number yourself/);
+  assert.match(skill, /Only the completion report\s*\n?may show 100%/);
 });
 
 test("plugin and marketplace publish version 1.2.1", async () => {

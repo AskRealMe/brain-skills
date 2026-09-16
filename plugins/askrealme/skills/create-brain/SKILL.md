@@ -78,6 +78,22 @@ paraphrase of the rules above is what produces "Before I discover any source, I
 need to know who this brain represents", which reads as the skill narrating its
 own control flow at someone who just wants to make a brain.
 
+**Announce every question in the normal response, immediately before you invoke
+the tool.** The question UI is easy to miss in a wall of build output, and a
+build that is silently waiting looks identical to one that is still working.
+Print this line on its own, nothing after it:
+
+```text
+──────────────────────────────────────────
+❓ YOUR INPUT NEEDED — <three or four words>
+──────────────────────────────────────────
+```
+
+The trailing words name the decision, not the mechanism: `whose voice`,
+`what it covers`, `which projects`, `written notes`, `existing brain`. Print it
+once per question, never for a status update, and never as a substitute for the
+`AskUserQuestion` call itself.
+
 Rules for anything you do have to write yourself, including the examples:
 
 - Plain second person. No word the owner would not use in conversation:
@@ -149,6 +165,39 @@ Cancel               — change nothing
 In every other user-facing message, say "the person this brain represents" and
 "folder name" (not "persona"/"slug"). Describe results and next actions without
 narrating internal script mechanics.
+
+## Showing progress
+
+One bar runs 0-100% across the whole build. It never restarts per stage and
+never goes backwards.
+
+```bash
+python3 "$SKILL_DIR/scripts/collect_raw.py" progress \
+  --workspace "$BRAIN_ROOT" --stage <stage> [--approved N] [--judged N]
+```
+
+Set the run shape once, at selection, with `--mode`: `create` for a full run
+with conversation sources, `documents` when the owner answered `none` and only
+owner-supplied files reach compilation, `ingest` for an `ingest-brain` delta.
+The mode sets the band widths, so a stage that will not run collapses to zero
+width and the bar walks past it instead of leaping.
+
+Call it at these points, and nowhere else:
+
+| When | Call |
+| --- | --- |
+| Sources selected | `--mode <shape> --approved <count> --stage discover` |
+| Each worker reports | `--stage relevance --judged <cumulative count>` |
+| Synthesis begins | `--stage synthesis` |
+| After each group of page writes | `--stage synthesis` |
+| Validation begins | `--stage validate` |
+| Completion report | `--stage done` |
+
+The percentage is an estimate and the counts beside it are not; print both, and
+do not describe the percentage as remaining time. Only the completion report
+may show 100%. Never compute, round, or adjust the number yourself — the
+command owns it, reads the workspace for its own counts, and holds the bar
+steady when a recount would move it backwards.
 
 ## Workspace
 

@@ -12,7 +12,8 @@ The raw directory is a private source corpus:
 * ``cleanup-staged`` removes only explicitly named temporary JSONL files;
 * ``add`` copies owner-supplied text files without rewriting them;
 * ``index`` registers text files placed manually under ``raw/files``;
-* ``verify`` checks index coverage and hashes.
+* ``verify`` checks index coverage and hashes;
+* ``progress`` renders one 0-100% bar for the whole build.
 
 Conversation discovery reuses the create-brain base extractor. Work directory
 metadata is recorded for provenance but is never a collection gate.
@@ -24,6 +25,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -41,6 +43,39 @@ NORMALIZED_SESSION_FORMAT = "askrealme-normalized-session-v1"
 NORMALIZED_EVENT_ROLES = frozenset({"user", "assistant", "tool", "tool_result"})
 NORMALIZED_EVENT_KEYS = frozenset({"timestamp", "role", "tool", "content", "partial"})
 DEFAULT_BATCH_BYTES = 1_572_864
+PROGRESS_NAME = ".progress.json"
+PROGRESS_BAR_WIDTH = 30
+# Ordered stages of one build. Every run walks this list; a stage that does not
+# apply gets a zero-width band rather than being removed, so the order and the
+# labels are the same in every mode.
+PROGRESS_STAGES = ("discover", "relevance", "synthesis", "validate", "done")
+PROGRESS_LABELS = {
+    "discover": "finding sources",
+    "relevance": "reviewing sources",
+    "synthesis": "writing the wiki",
+    "validate": "checking the result",
+    "done": "done",
+}
+# Share of the bar each stage owns, by run shape. Weights are relative and are
+# normalized to 100, so tuning one number cannot make the bar overrun or stop
+# short. A zero collapses that stage's band: the bar walks straight past it
+# instead of parking at its lower bound and then leaping.
+PROGRESS_WEIGHTS = {
+    # A full create with conversation sources: relevance is fanned out across
+    # workers, synthesis is serial and dominates.
+    "create": {"discover": 5, "relevance": 40, "synthesis": 45, "validate": 10},
+    # The owner answered `none` to source selection: no staging, no relevance
+    # workers, no retention. Only documents reach synthesis.
+    "documents": {"discover": 5, "relevance": 0, "synthesis": 85, "validate": 10},
+    # ingest-brain delta mode: a known, small source set, then the same
+    # whole-corpus synthesis as a full run.
+    "ingest": {"discover": 5, "relevance": 15, "synthesis": 70, "validate": 10},
+}
+# Pages this build is expected to produce per retained source. Only shapes the
+# synthesis curve's approach; being wrong slows or quickens the climb but can
+# never push the bar past the band or stall it at a fixed number.
+PROGRESS_PAGES_PER_SOURCE = 3.0
+PROGRESS_PAGE_DIRS = ("entities", "events", "claims")
 SELF_CONTAINED_PROVIDERS = frozenset(
     {"claude", "codex", "grok", "cursor", "pi", "openclaw", "hermes"}
 )
@@ -850,6 +885,208 @@ def render_document(raw_dir: Path, record: dict) -> str:
     )
 
 
+def progress_path(workspace: Path) -> Path:
+    """Progress state lives at the workspace root — never in ``raw/`` (``verify``
+    rejects unindexed files there) and never in ``output/`` (that directory is
+    what gets uploaded)."""
+    return workspace / PROGRESS_NAME
+
+
+def read_progress(workspace: Path) -> dict:
+    target = progress_path(workspace)
+    if not target.exists():
+        return {}
+    try:
+        state = json.loads(target.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeError):
+        # A build is not worth failing over a corrupt progress file.
+        return {}
+    return state if isinstance(state, dict) else {}
+
+
+def progress_bands(mode: str) -> dict[str, tuple[float, float]]:
+    """Contiguous [low, high) slices of one 0-100 bar, in stage order.
+
+    Weights are normalized, so the first band always starts at 0 and the last
+    always ends at 100 no matter how the weights are tuned. A zero weight
+    yields an empty band, which is what makes a skipped stage a no-op instead
+    of a jump."""
+    weights = PROGRESS_WEIGHTS.get(mode) or PROGRESS_WEIGHTS["create"]
+    total = sum(max(0.0, float(weights.get(stage, 0))) for stage in PROGRESS_STAGES[:-1])
+    if total <= 0:
+        raise ValueError(f"progress weights for {mode} must not sum to zero")
+    bands: dict[str, tuple[float, float]] = {}
+    cursor = 0.0
+    for stage in PROGRESS_STAGES[:-1]:
+        span = max(0.0, float(weights.get(stage, 0))) / total * 100.0
+        bands[stage] = (cursor, cursor + span)
+        cursor += span
+    bands["done"] = (100.0, 100.0)
+    return bands
+
+
+def count_pages(output_dir: Path) -> int:
+    """Wiki pages written so far. Counts the declared page directories only —
+    ``sources/`` is stage 2's output and must not advance the synthesis band."""
+    if not output_dir.is_dir():
+        return 0
+    total = 0
+    for name in PROGRESS_PAGE_DIRS:
+        directory = output_dir / name
+        if directory.is_dir():
+            total += sum(1 for item in directory.glob("*.md") if item.is_file())
+    if (output_dir / "BRAIN.md").is_file():
+        total += 1
+    return total
+
+
+def count_source_pages(output_dir: Path) -> int:
+    sources = output_dir / "sources"
+    if not sources.is_dir():
+        return 0
+    return sum(1 for item in sources.glob("*.md") if item.is_file())
+
+
+def synthesis_fraction(pages: int, retained: int) -> float:
+    """Approach the top of the synthesis band without ever reaching it early.
+
+    A plain ``pages / expected`` would pin at 100% the moment the guess was
+    beaten and sit motionless when it was not. This curve always advances on a
+    write and always has somewhere left to go, so a wrong estimate changes the
+    pace and nothing else."""
+    if pages <= 0:
+        return 0.0
+    expected = max(1.0, PROGRESS_PAGES_PER_SOURCE * max(1, retained))
+    # Capped below 1: for a large enough page count the exponential saturates
+    # to exactly 1.0 in floating point, which would put the bar on the next
+    # stage's starting value while this one is still running.
+    return min(0.99, 1.0 - math.exp(-pages / expected))
+
+
+def compute_percent(state: dict, workspace: Path) -> float:
+    stage = str(state.get("stage") or PROGRESS_STAGES[0])
+    if stage not in PROGRESS_STAGES:
+        stage = PROGRESS_STAGES[0]
+    bands = progress_bands(str(state.get("mode") or "create"))
+    low, high = bands[stage]
+    if stage == "done":
+        return 100.0
+    span = high - low
+    if span <= 0:
+        return low
+    if stage == "relevance":
+        approved = max(0, int(state.get("approved") or 0))
+        judged = max(0, int(state.get("judged") or 0))
+        # A true fraction: the parent knows both numbers.
+        fraction = min(1.0, judged / approved) if approved else 0.0
+    elif stage == "synthesis":
+        output_dir = workspace / "output"
+        retained = max(0, int(state.get("retained") or 0))
+        fraction = synthesis_fraction(count_pages(output_dir), retained)
+    else:
+        fraction = 0.0
+    return low + span * fraction
+
+
+def render_bar(percent: float) -> str:
+    filled = int(round(PROGRESS_BAR_WIDTH * percent / 100.0))
+    filled = max(0, min(PROGRESS_BAR_WIDTH, filled))
+    return "\u2588" * filled + "\u2591" * (PROGRESS_BAR_WIDTH - filled)
+
+
+def format_elapsed(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes, rest = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}m" if rest < 6 else f"{minutes}m{rest:02d}s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h{minutes:02d}m"
+
+
+def progress_detail(state: dict, workspace: Path) -> str:
+    """The exact half of the display. The percentage is an estimate; these
+    counts are not, and showing both is what keeps the estimate honest."""
+    stage = str(state.get("stage") or "")
+    parts: list[str] = []
+    if stage == "relevance":
+        approved = int(state.get("approved") or 0)
+        judged = int(state.get("judged") or 0)
+        parts.append(f"{judged}/{approved} sources judged" if approved else f"{judged} judged")
+        retained = int(state.get("retained") or 0)
+        if retained:
+            parts.append(f"{retained} kept")
+    elif stage == "synthesis":
+        retained = int(state.get("retained") or 0)
+        pages = count_pages(workspace / "output")
+        parts.append(f"{retained} sources")
+        parts.append(f"{pages} page{'s' if pages != 1 else ''} written")
+    elif stage == "validate":
+        parts.append(f"{count_source_pages(workspace / 'output')} source pages")
+    started = state.get("started_at")
+    if started:
+        try:
+            began = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+            parts.append(format_elapsed((datetime.now(timezone.utc) - began).total_seconds()))
+        except ValueError:
+            pass
+    return " \u00b7 ".join(parts)
+
+
+def cmd_progress(args: argparse.Namespace) -> int:
+    workspace = Path(args.workspace).expanduser().resolve()
+    state = read_progress(workspace)
+
+    if not state:
+        state = {"started_at": utc_now(), "stage": PROGRESS_STAGES[0], "percent": 0.0}
+    if args.mode:
+        state["mode"] = args.mode
+    state.setdefault("mode", "create")
+    if args.approved is not None:
+        state["approved"] = max(0, args.approved)
+    if args.judged is not None:
+        state["judged"] = max(0, args.judged)
+    if args.stage:
+        if args.stage not in PROGRESS_STAGES:
+            raise ValueError(f"unknown stage: {args.stage}")
+        state["stage"] = args.stage
+
+    # Retained count is read from the index rather than passed in, so it cannot
+    # drift from what is actually on disk.
+    raw_dir = workspace / "raw"
+    try:
+        state["retained"] = len(read_index(raw_dir))
+    except ValueError:
+        state["retained"] = int(state.get("retained") or 0)
+
+    computed = compute_percent(state, workspace)
+    # Monotonic: a recount that would move the bar backwards is ignored. A bar
+    # that retreats reads as a fault even when the new number is better.
+    previous = float(state.get("percent") or 0.0)
+    state["percent"] = 100.0 if state.get("stage") == "done" else max(previous, computed)
+
+    progress_path(workspace).parent.mkdir(parents=True, exist_ok=True)
+    write_bytes_atomic(
+        progress_path(workspace),
+        (json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
+
+    if args.json:
+        print(json.dumps(state, ensure_ascii=False, sort_keys=True))
+        return 0
+    if args.quiet:
+        return 0
+
+    percent = state["percent"]
+    label = PROGRESS_LABELS.get(str(state.get("stage")), "")
+    detail = progress_detail(state, workspace)
+    print(f"[{render_bar(percent)}] {percent:5.1f}%  {label}")
+    if detail:
+        print(f"{' ' * (PROGRESS_BAR_WIDTH + 3)}{detail}")
+    return 0
+
+
 def cmd_verify(raw_dir: Path) -> int:
     raw_dir = raw_dir.expanduser().resolve()
     violations: list[str] = []
@@ -994,6 +1231,15 @@ def main() -> int:
     verify = commands.add_parser("verify", help="verify raw index coverage and hashes")
     verify.add_argument("--output", required=True, help="raw directory")
 
+    progress = commands.add_parser("progress", help="render one 0-100%% bar for the whole build")
+    progress.add_argument("--workspace", required=True, help="brain workspace root (holds raw/ and output/)")
+    progress.add_argument("--stage", help=f"advance to a stage: {', '.join(PROGRESS_STAGES)}")
+    progress.add_argument("--mode", choices=sorted(PROGRESS_WEIGHTS), help="run shape; sets the band widths")
+    progress.add_argument("--approved", type=int, help="sources approved for review (relevance denominator)")
+    progress.add_argument("--judged", type=int, help="sources judged so far (relevance numerator)")
+    progress.add_argument("--json", action="store_true", help="print the state instead of the bar")
+    progress.add_argument("--quiet", action="store_true", help="record without printing")
+
     args = parser.parse_args()
     try:
         if args.command == "cleanup-staged":
@@ -1006,6 +1252,8 @@ def main() -> int:
             return cmd_add(args)
         if args.command == "verify":
             return cmd_verify(Path(args.output))
+        if args.command == "progress":
+            return cmd_progress(args)
         base = load_base()
         if args.command == "discover":
             return cmd_discover(base, args)
