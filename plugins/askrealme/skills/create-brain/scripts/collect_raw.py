@@ -71,11 +71,18 @@ PROGRESS_WEIGHTS = {
     # whole-corpus synthesis as a full run.
     "ingest": {"discover": 5, "relevance": 15, "synthesis": 70, "validate": 10},
 }
-# Pages this build is expected to produce per retained source. Only shapes the
-# synthesis curve's approach; being wrong slows or quickens the climb but can
-# never push the bar past the band or stall it at a fixed number.
-PROGRESS_PAGES_PER_SOURCE = 3.0
-PROGRESS_PAGE_DIRS = ("entities", "events", "claims")
+# Wiki pages a build is expected to produce. Measured across 18 production
+# brains: 480 sources produced 469 core pages, but the per-source ratio ranged
+# from 0.22 to 8.00 and fell as sources rose — pages merge, so their count is
+# nearly independent of how many sources fed them. Median was around two dozen,
+# which is why this is a flat expectation and not a multiple of the source
+# count. Only shapes the synthesis curve's approach; being wrong slows or
+# quickens the climb but can never push the bar past its band or stall it.
+PROGRESS_EXPECTED_PAGES = 24.0
+# Page directories are declared per brain in schema.md — `entities`, `events`
+# and `claims` are only the seed set, and real brains add their own. Count
+# every page directory except `sources`, which stage 2 writes.
+PROGRESS_SOURCES_DIR = "sources"
 SELF_CONTAINED_PROVIDERS = frozenset(
     {"claude", "codex", "grok", "cursor", "pi", "openclaw", "hermes"}
 )
@@ -926,15 +933,16 @@ def progress_bands(mode: str) -> dict[str, tuple[float, float]]:
 
 
 def count_pages(output_dir: Path) -> int:
-    """Wiki pages written so far. Counts the declared page directories only —
-    ``sources/`` is stage 2's output and must not advance the synthesis band."""
+    """Wiki pages written so far, across every page directory the brain declares
+    in schema.md — not just the seed four. ``sources/`` is excluded: those pages
+    are stage 2's output and must not advance the synthesis band."""
     if not output_dir.is_dir():
         return 0
     total = 0
-    for name in PROGRESS_PAGE_DIRS:
-        directory = output_dir / name
-        if directory.is_dir():
-            total += sum(1 for item in directory.glob("*.md") if item.is_file())
+    for directory in output_dir.iterdir():
+        if not directory.is_dir() or directory.name == PROGRESS_SOURCES_DIR:
+            continue
+        total += sum(1 for item in directory.glob("*.md") if item.is_file())
     if (output_dir / "BRAIN.md").is_file():
         total += 1
     return total
@@ -947,7 +955,7 @@ def count_source_pages(output_dir: Path) -> int:
     return sum(1 for item in sources.glob("*.md") if item.is_file())
 
 
-def synthesis_fraction(pages: int, retained: int) -> float:
+def synthesis_fraction(pages: int, retained: int = 0) -> float:
     """Approach the top of the synthesis band without ever reaching it early.
 
     A plain ``pages / expected`` would pin at 100% the moment the guess was
@@ -956,7 +964,10 @@ def synthesis_fraction(pages: int, retained: int) -> float:
     pace and nothing else."""
     if pages <= 0:
         return 0.0
-    expected = max(1.0, PROGRESS_PAGES_PER_SOURCE * max(1, retained))
+    # `retained` is accepted and ignored: the measurement above showed page
+    # count does not track source count, and scaling by it made the bar crawl
+    # on exactly the large brains the bar exists for.
+    expected = PROGRESS_EXPECTED_PAGES
     # Capped below 1: for a large enough page count the exponential saturates
     # to exactly 1.0 in floating point, which would put the bar on the next
     # stage's starting value while this one is still running.

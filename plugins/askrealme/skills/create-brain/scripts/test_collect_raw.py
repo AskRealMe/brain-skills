@@ -475,6 +475,10 @@ def progress_state(workspace: Path, *args: str) -> dict:
     return json.loads(result.stdout)
 
 
+def count_only_grew(workspace: Path, before: float) -> bool:
+    return progress_state(workspace, "--stage", "synthesis")["percent"] >= before
+
+
 def check_progress() -> None:
     """One 0-100% bar for the whole build: contiguous bands, no backwards step,
     no early 100, and a skipped stage that collapses instead of jumping."""
@@ -509,6 +513,16 @@ def check_progress() -> None:
             (workspace / "output" / "claims" / f"c{index}.md").write_text("x", encoding="utf-8")
         flooded = progress_state(workspace, "--stage", "synthesis")
         assert flooded["percent"] < 90.0, f"synthesis must stay inside its band: {flooded}"
+
+        # Page directories are declared per brain in schema.md; entities/events/
+        # claims are only the seed set. A brain using its own type must still
+        # advance the bar, or synthesis looks frozen for the whole stage.
+        custom = workspace / "output" / "operator-v1"
+        custom.mkdir()
+        before_custom = progress_state(workspace, "--stage", "synthesis")["percent"]
+        for index in range(30):
+            (custom / f"o{index}.md").write_text("x", encoding="utf-8")
+        assert count_only_grew(workspace, before_custom), "custom page dirs must count"
 
         # Only the completion report is allowed to print 100.
         assert progress_state(workspace, "--stage", "validate")["percent"] < 100.0
