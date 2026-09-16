@@ -154,6 +154,12 @@ test("every owner question ships with its literal wording", async () => {
   // A waiting question must be impossible to mistake for build output.
   assert.match(skill, /YOUR INPUT NEEDED/);
   assert.match(skill, /Announce every question in the normal response, immediately before you invoke\s*\n?the tool/);
+  // A thin rule reads as build output. The banner needs weight: full-width
+  // heavy rules with blank lines inside them, and the question restated so the
+  // banner alone says what is wanted.
+  assert.ok(skill.includes("\u2501".repeat(60)), "banner rules must be 60 heavy characters");
+  assert.match(skill, /<the question, verbatim>/);
+  assert.match(skill, /a blank line sits above the\s*\n?first and below the last/);
 });
 
 test("one progress bar spans the whole build", async () => {

@@ -81,18 +81,26 @@ own control flow at someone who just wants to make a brain.
 **Announce every question in the normal response, immediately before you invoke
 the tool.** The question UI is easy to miss in a wall of build output, and a
 build that is silently waiting looks identical to one that is still working.
-Print this line on its own, nothing after it:
+Print this banner on its own, nothing after it, and reproduce it exactly —
+the blank lines inside the rules are what make it carry at a glance:
 
 ```text
-──────────────────────────────────────────
-❓ YOUR INPUT NEEDED — <three or four words>
-──────────────────────────────────────────
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   ❓  YOUR INPUT NEEDED
+
+   <the question, verbatim>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 ```
 
-The trailing words name the decision, not the mechanism: `whose voice`,
-`what it covers`, `which projects`, `written notes`, `existing brain`. Print it
-once per question, never for a status update, and never as a substitute for the
-`AskUserQuestion` call itself.
+Both rules are 60 heavy box-drawing characters, and a blank line sits above the
+first and below the last. Restate the question itself inside the banner, word
+for word as the tool will ask it — a reader who sees only the banner still
+knows what is wanted. Print it once per question, never for a status update,
+and never as a substitute for the `AskUserQuestion` call itself.
 
 Rules for anything you do have to write yourself, including the examples:
 
