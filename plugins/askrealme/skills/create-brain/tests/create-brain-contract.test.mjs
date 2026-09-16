@@ -13,7 +13,7 @@ test("identity and brain scope are confirmed before discovery", async () => {
 
   const identityGate = skill.indexOf("**the person this brain represents**");
   const scopeGate = skill.indexOf("**brain scope**");
-  const sourceDiscovery = skill.indexOf("## 1. Discover and choose source directories");
+  const sourceDiscovery = skill.indexOf("## 1. Discover source directories");
 
   assert.ok(identityGate >= 0, "missing identity gate");
   assert.ok(scopeGate > identityGate, "scope gate must follow identity gate");
@@ -31,20 +31,21 @@ test("collection retains normalized sessions and requires approved work director
   assert.match(skill, /raw\/\n│   ├── index\.jsonl/);
   assert.match(skill, /grok\/<source-id>\.jsonl/);
   assert.match(skill, /files\/<collection-id>\/<original-relative-path>/);
-  assert.match(skill, /show only the first 20 rows as\s+one Markdown table/);
-  assert.match(skill, /Never\s+print rows after number 20/);
-  assert.match(skill, /number, session count, sources, and\s+directory/);
-  assert.match(skill, /Render this table in the normal assistant response before invoking\s+`AskUserQuestion`/);
-  assert.match(skill, /the table must remain visible outside the question UI/);
-  assert.match(skill, /Never\s+place the table, table rows, or the full directory list inside the\s+`AskUserQuestion`/);
-  assert.match(skill, /Only after the normal response has finished rendering the table/);
-  assert.match(skill, /one short sentence\s*\n?referring to the already displayed row numbers/);
-  assert.match(skill, /enter an absolute\s+directory path when\s+the directory they want is not shown/);
-  assert.match(skill, /invoke `AskUserQuestion` to select the source directories/);
-  assert.match(skill, /one or more displayed table numbers or\s+absolute directory paths/);
-  assert.match(skill, /reject it when no discovered conversation uses that\s+exact work directory/);
-  assert.match(skill, /This\s+selection is required/);
-  assert.match(skill, /Do not read, retain, or use records from any other directory/);
+  // Reading every discovered source is the default: the owner is told, not
+  // asked. A guess from a path name cannot beat the relevance workers, which
+  // judge each source against scope AFTER reading it, and the consent that
+  // matters is at upload, not here.
+  assert.match(skill, /\*\*Do not ask which directories to use\.\*\*/);
+  assert.match(skill, /this is a notice, not a\s*\n?gate/);
+  assert.match(skill, /Never print more than five directories, never number them for selection/);
+  assert.match(skill, /reject it when no\s*\n?discovered conversation uses that exact work directory/);
+  assert.doesNotMatch(skill, /This\s+selection is required/);
+  assert.doesNotMatch(skill, /invoke `AskUserQuestion` to select the source directories/);
+  // The escape hatch is what makes a notice sufficient rather than presumptuous.
+  assert.match(skill, /Say so now if you would rather narrow this, or use documents only/);
+  assert.match(skill, /Honour an interruption whenever it arrives/);
+  // Narrowing is now the exception, granted only on an interruption.
+  assert.match(skill, /every discovered record is in scope for review/);
   assert.match(skill, /must not expose, total, compare, or report native original file\s+sizes/);
   assert.match(skill, /Never open an `original_path`\s+directly/);
   assert.match(skill, /The `read`\s+command is the only content gateway/);
@@ -120,7 +121,6 @@ test("all blocking owner decisions use AskUserQuestion", async () => {
   assert.match(skill, /Treat a missing directory as an empty set|a missing directory is an empty set/);
   assert.match(skill, /do not open any existing\s*\n?brain/);
   assert.match(skill, /to choose\s*\n?Update it, Use a different name, or Cancel/);
-  assert.match(skill, /invoke `AskUserQuestion` to select the source directories/);
   assert.match(skill, /to choose Add these, I'll\s*\n?give paths, or Skip/);
 });
 
@@ -133,7 +133,6 @@ test("every owner question ships with its literal wording", async () => {
   for (const [header, question] of [
     ["Whose voice", "When someone asks this brain a question, who are they hearing from?"],
     ["What it covers", "What should this brain be good at — and what should it stay out of?"],
-    ["Which projects", "Which of these should it learn from? Use the numbers above."],
     ["Written notes", "Any write-ups to add? Retros, decision records, design notes."],
     ["Existing brain", "You already have a brain here. Update it, or start a separate one?"],
   ]) {
@@ -154,12 +153,10 @@ test("every owner question ships with its literal wording", async () => {
   // A waiting question must be impossible to mistake for build output.
   assert.match(skill, /YOUR INPUT NEEDED/);
   assert.match(skill, /Announce every question in the normal response, immediately before you invoke\s*\n?the tool/);
-  // A thin rule reads as build output. The banner needs weight: full-width
-  // heavy rules with blank lines inside them, and the question restated so the
-  // banner alone says what is wanted.
-  assert.ok(skill.includes("\u2501".repeat(60)), "banner rules must be 60 heavy characters");
-  assert.match(skill, /<the question, verbatim>/);
-  assert.match(skill, /a blank line sits above the\s*\n?first and below the last/);
+  // A left bar reads as a callout beside flush-left build output and needs no
+  // guess about terminal width. Two lines, question restated on the second.
+  assert.match(skill, /\u258c \u2753 YOUR INPUT NEEDED\n\u258c <the question, verbatim>/);
+  assert.match(skill, /Two lines, a bar on each, with a blank line above and below/);
 });
 
 test("one progress bar spans the whole build", async () => {

@@ -81,26 +81,22 @@ own control flow at someone who just wants to make a brain.
 **Announce every question in the normal response, immediately before you invoke
 the tool.** The question UI is easy to miss in a wall of build output, and a
 build that is silently waiting looks identical to one that is still working.
-Print this banner on its own, nothing after it, and reproduce it exactly —
-the blank lines inside the rules are what make it carry at a glance:
+Print this banner on its own, nothing after it, and reproduce it exactly:
 
 ```text
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-   ❓  YOUR INPUT NEEDED
-
-   <the question, verbatim>
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▌ ❓ YOUR INPUT NEEDED
+▌ <the question, verbatim>
 
 ```
 
-Both rules are 60 heavy box-drawing characters, and a blank line sits above the
-first and below the last. Restate the question itself inside the banner, word
-for word as the tool will ask it — a reader who sees only the banner still
-knows what is wanted. Print it once per question, never for a status update,
-and never as a substitute for the `AskUserQuestion` call itself.
+Two lines, a bar on each, with a blank line above and below the block. The bar
+is what carries it — build output is all flush-left text and progress bars, so
+an indented block reads as something else entirely, and it costs no guess about
+how wide the terminal is. Restate the question on the second line, word for
+word as the tool will ask it, so a reader who sees only the banner still knows
+what is wanted. Print it once per question, never for a status update, and
+never as a substitute for the `AskUserQuestion` call itself.
 
 Rules for anything you do have to write yourself, including the examples:
 
@@ -136,13 +132,6 @@ question: What should this brain be good at — and what should it stay out of?
 
 Two options, each naming one thing it handles and one thing it does not, both
 narrower than the person above.
-
-### Which projects to learn from
-
-```text
-header:   Which projects
-question: Which of these should it learn from? Use the numbers above.
-```
 
 ### Written notes
 
@@ -184,9 +173,9 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" progress \
   --workspace "$BRAIN_ROOT" --stage <stage> [--approved N] [--judged N]
 ```
 
-Set the run shape once, at selection, with `--mode`: `create` for a full run
-with conversation sources, `documents` when the owner answered `none` and only
-owner-supplied files reach compilation, `ingest` for an `ingest-brain` delta.
+Set the run shape once, at discovery, with `--mode`: `create` for a full run
+with conversation sources, `documents` when the owner interrupts to ask for
+documents only, `ingest` for an `ingest-brain` delta.
 The mode sets the band widths, so a stage that will not run collapses to zero
 width and the bar walks past it instead of leaping.
 
@@ -194,7 +183,7 @@ Call it at these points, and nowhere else:
 
 | When | Call |
 | --- | --- |
-| Sources selected | `--mode <shape> --approved <count> --stage discover` |
+| Discovery announced | `--mode <shape> --approved <count> --stage discover` |
 | Each worker reports | `--stage relevance --judged <cumulative count>` |
 | Synthesis begins | `--stage synthesis` |
 | After each group of page writes | `--stage synthesis` |
@@ -264,7 +253,7 @@ results to that workspace. Report that its retained evidence does not satisfy
 the current normalized-raw contract. Never mix legacy native-session copies
 with `askrealme-normalized-session-v1` records.
 
-## 1. Discover and choose source directories
+## 1. Discover source directories
 
 After the represented person, folder name, and brain scope are confirmed,
 list native conversation originals from every locally supported self-contained store without copying them:
@@ -274,34 +263,46 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" discover \
   --raw "$BRAIN_ROOT/raw"
 ```
 
-Do not read conversation bodies yet. Group the discovery result by work
-directory, rank the groups by session count, and show only the first 20 rows as
-one Markdown table with these columns: number, session count, sources, and
-directory. Render this table in the normal assistant response before invoking
-`AskUserQuestion`; the table must remain visible outside the question UI. Never
-place the table, table rows, or the full directory list inside the
-`AskUserQuestion` question, header, option labels, or option descriptions. Never
-print rows after number 20. Abbreviate the home directory as `~`. Immediately
-below the table, say that the owner can enter an absolute directory path when
-the directory they want is not shown. Then recommend a useful combination based
-only on path names and session counts, and state that no conversation content
-has been inspected.
+**Do not ask which directories to use.** Read everything discovered and let the
+relevance workers decide — they judge each source against the confirmed brain
+scope after reading it, which a person cannot do from a path name. Asking first
+put the owner's guess ahead of the filter that actually works, and the skill
+told them outright that no content had been inspected when it asked. Nothing is
+uploaded either way until `review-brain` and an explicit `upload-brain`, so the
+consent that matters is not here.
 
-Only after the normal response has finished rendering the table and its short
-recommendation, invoke `AskUserQuestion` to select the source directories, using
-the wording in [Asking the owner](#asking-the-owner) — one short sentence
-referring to the already displayed row numbers. Offer two useful combinations based only on the displayed metadata;
-the native custom-answer route accepts one or more displayed table numbers or
-absolute directory paths that were not shown. Resolve an entered path against
-the discovered groups and reject it when no discovered conversation uses that
-exact work directory. This selection is required. A recommendation, displayed
-default, timeout, cancellation, empty reply, or previous selection is not
-approval. End the turn and wait until the owner explicitly selects the source
-directories for this invocation.
+Do not read conversation bodies yet. Announce what is about to be read, in the
+normal response, and then keep going in the same turn — this is a notice, not a
+gate. Group the discovery result by work directory and rank by session count.
+Give the totals first, then at most five directories, then a count of the rest.
+Abbreviate the home directory as `~`:
 
-After approval, keep only discovered records whose work directory matches a
-selected row. Do not read, retain, or use records from any other directory.
-IDs already retained in `raw/index.jsonl` are omitted from discovery.
+```text
+Reading 23 sessions across 6 projects to build "<brain name>".
+Only material relevant to <scope> is kept; nothing is uploaded until
+you review it.
+
+  ~/Documents/OrangeNests   12
+  ~/Documents/BizBen         6
+  ~/Documents/yeppe          3   … and 3 more
+
+Say so now if you would rather narrow this, or use documents only.
+```
+
+Never print more than five directories, never number them for selection, and
+never place this list inside an `AskUserQuestion`. Do not print a
+recommendation: there is no longer a choice to recommend.
+
+That closing line is the escape hatch, and it is the whole reason a notice is
+enough. An owner with client work on the same machine can interrupt and name
+the directories or ask for documents only; everyone else never has to think
+about it. Honour an interruption whenever it arrives: keep only the directories
+named, or set progress `--mode documents` and skip to owner-supplied documents.
+Resolve an entered path against the discovered groups and reject it when no
+discovered conversation uses that exact work directory.
+
+Otherwise every discovered record is in scope for review. IDs already retained
+in `raw/index.jsonl` are omitted from discovery.
 
 Discovery must not expose, total, compare, or report native original file
 sizes. Never open an `original_path` directly or use another command to print a
