@@ -49,7 +49,8 @@ The brain-id is the only identifier. Never generate, invent, or substitute one.
 Stamp it verbatim into `output/BRAIN.md` as `brain_id:` (see the output
 contract); the `upload-brain` skill uploads to exactly that brain.
 
-Still gather the two things the compile needs, using `AskUserQuestion` (its
+Still gather the two things the compile needs, using `AskUserQuestion` with the
+exact wording in [Asking the owner](#asking-the-owner) (its
 native custom-answer route is the third choice; a displayed default, timeout,
 cancellation, or empty result is not an answer — ask again and wait):
 
@@ -68,8 +69,85 @@ disambiguator or ask for an alternative — never reuse another brain's folder. 
 re-run with the same brain-id refreshes that brain (preserve `raw/`, keep the
 same `brain_id`, increment `version`).
 
-In user-facing messages, say "the person this brain represents" and "folder
-name" (not "persona"/"slug"). Describe results and next actions without
+## Asking the owner
+
+Every question below ships with its wording. Use the `question` and `header`
+verbatim; write only the two example options from context. Wording is not a
+detail here — the owner sees the question and nothing else, so an improvised
+paraphrase of the rules above is what produces "Before I discover any source, I
+need to know who this brain represents", which reads as the skill narrating its
+own control flow at someone who just wants to make a brain.
+
+Rules for anything you do have to write yourself, including the examples:
+
+- Plain second person. No word the owner would not use in conversation:
+  never *persona*, *slug*, *scope*, *corpus*, *normalize*, *evidence*,
+  *discovery*, *gate*, *artifact*, *invoke*, *retain*, *source directory*.
+- Never narrate what you are about to do, why you need the answer, or what
+  happens next. No "before I…", "I need to…", "in order to…".
+- Question under about fifteen words. Options one to four words, with the
+  concrete example in the option's description.
+
+### The person this brain represents
+
+```text
+header:   Whose voice
+question: When someone asks this brain a question, who are they hearing from?
+```
+
+Two options, each a short description of a person, drawn from the brain name.
+
+This asks who the brain **answers as** — never who will be asking it. "Who
+would talk to your brain" is a different question with a different answer, and
+taking the audience as the voice makes the brain answer as the wrong person for
+the rest of its life. If the owner's reply names an audience instead
+("junior engineers", "my clients"), ask once more rather than accepting it.
+
+### Brain scope
+
+```text
+header:   What it covers
+question: What should this brain be good at — and what should it stay out of?
+```
+
+Two options, each naming one thing it handles and one thing it does not, both
+narrower than the person above.
+
+### Which projects to learn from
+
+```text
+header:   Which projects
+question: Which of these should it learn from? Use the numbers above.
+```
+
+### Written notes
+
+```text
+header:   Written notes
+question: Any write-ups to add? Retros, decision records, design notes.
+```
+
+```text
+Add these       — the <n> I found under <path>
+I'll give paths — you type where they are
+Skip            — the conversations are enough
+```
+
+### A brain already exists in that folder
+
+```text
+header:   Existing brain
+question: You already have a brain here. Update it, or start a separate one?
+```
+
+```text
+Update it            — keep what is there and add to it
+Use a different name — start a separate brain
+Cancel               — change nothing
+```
+
+In every other user-facing message, say "the person this brain represents" and
+"folder name" (not "persona"/"slug"). Describe results and next actions without
 narrating internal script mechanics.
 
 ## Workspace
@@ -111,8 +189,8 @@ in the transferable output.
 
 If the normalized folder name matches an existing direct child directory,
 explain that the operation will refresh the existing brain and use
-`AskUserQuestion` to choose Refresh, Choose a different folder, or Cancel before
-changing it. If the owner chooses a different folder, repeat the direct-child
+`AskUserQuestion` — wording in [Asking the owner](#asking-the-owner) — to choose
+Update it, Use a different name, or Cancel before changing it. If the owner chooses a different folder, repeat the direct-child
 name check before accepting the replacement. Preserve
 `raw/`, increment the positive integer `version` in `output/BRAIN.md`, and
 keep `brain_id` set to the brain-id passed on the command line.
@@ -153,9 +231,9 @@ only on path names and session counts, and state that no conversation content
 has been inspected.
 
 Only after the normal response has finished rendering the table and its short
-recommendation, invoke `AskUserQuestion` to select the source directories. Keep
-the question itself to one short sentence that refers to the already displayed
-row numbers. Offer two useful combinations based only on the displayed metadata;
+recommendation, invoke `AskUserQuestion` to select the source directories, using
+the wording in [Asking the owner](#asking-the-owner) — one short sentence
+referring to the already displayed row numbers. Offer two useful combinations based only on the displayed metadata;
 the native custom-answer route accepts one or more displayed table numbers or
 absolute directory paths that were not shown. Resolve an entered path against
 the discovered groups and reject it when no discovered conversation uses that
@@ -326,9 +404,9 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" cleanup-staged \
 
 After conversation collection, tell the owner where `raw/files/` is. If likely
 decision records, retrospectives, ADRs, notes, or other supported text
-documents exist, show candidate paths and counts. Use `AskUserQuestion` to
-choose Add suggested documents, Enter other paths, or Continue without
-documents. Copy only paths the owner supplies or approves:
+documents exist, show candidate paths and counts. Use `AskUserQuestion` —
+wording in [Asking the owner](#asking-the-owner) — to choose Add these, I'll
+give paths, or Skip. Copy only paths the owner supplies or approves:
 
 ```bash
 python3 "$SKILL_DIR/scripts/collect_raw.py" add \
