@@ -202,17 +202,27 @@ Call it at these points:
 
 | When | Call |
 | --- | --- |
-| Discovery announced | `--mode <shape> --approved <count> --stage discover` |
+| Discovery announced | `--mode <shape> --approved <count> --stage discover --steps <count> --step 0` |
+| **After staging each source** | `--step <staged so far>` |
 | Batches planned | `--stage relevance --batch-plan "1:20,2:14"` |
 | Every time a worker reports, and at each ten-minute check | `--stage relevance` |
 | Synthesis begins | `--stage synthesis` |
-| After every fifth page written | `--stage synthesis` |
-| Validation begins | `--stage validate` |
+| **After writing each page** | `--stage synthesis` |
+| Validation begins | `--stage validate --steps 3 --step 0` |
+| **After each check finishes** | `--step <checks done>` |
 | Completion report | `--stage done` |
 
-"After every fifth page" is a count, not a feeling. `--batch-plan` takes every
-batch as `<number>:<sources>` once, when the batches are packed; it is what
-lets the bar say which workers are still out.
+Every stage has a unit and the bar moves on each one: a source staged, a source
+judged, a page written, a check passed. None of them is "a group" or "a while" —
+those get improvised, and improvising is what leaves the bar still for minutes.
+
+`--steps`/`--step` interpolate the stages with nothing on disk to count, and
+clear themselves on a stage change. `--batch-plan` takes every batch as
+`<number>:<sources>` once, when the batches are packed; it is what lets the bar
+say which workers are still out.
+
+Rendering costs one fast local command and no model call. When in doubt, render:
+a line too many is noise, a line too few is a build that looks hung.
 
 During relevance the numbers come from the decision log rather than from
 anything passed in, so a render is current to the last source judged even when
@@ -358,7 +368,8 @@ incomplete or invented export format.
 
 Before creating relevance workers, normalize every approved source exactly once
 into temporary JSONL without placing its rendered content in the parent's model
-context. Use `read --normalized-output` and discard its standard output. Record
+context. Report progress after each one — this loop is serial and silent, and
+on a large corpus it is the first place a build appears to hang. Use `read --normalized-output` and discard its standard output. Record
 only each staged file's source ID, path, and byte count for scheduling. This
 byte count describes the canonical normalized input the worker will actually
 read; use it only to balance work, never to decide relevance or exclude a
@@ -591,9 +602,10 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" verify \
 python3 "$SKILL_DIR/scripts/lint_wiki.py" "$BRAIN_ROOT/output"
 ```
 
-Fix every reported error and rerun both checks. Do not waive failures. Then
-launch the content inspection as one background Agent worker with the `model`
-parameter set to `haiku`, and inspect for:
+Fix every reported error and rerun both checks, reporting progress after each.
+Do not waive failures. Then launch the content inspection as one background
+Agent worker with the `model` parameter set to `haiku` — the third check — and
+inspect for:
 
 - conflicting claims;
 - superseded claims that are not linked to their replacement;

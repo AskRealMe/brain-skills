@@ -1075,7 +1075,12 @@ def compute_percent(state: dict, workspace: Path) -> float:
         retained = max(0, int(state.get("retained") or 0))
         fraction = synthesis_fraction(count_pages(output_dir), retained)
     else:
-        fraction = 0.0
+        # Stages with no artifact on disk to count — staging sources, running
+        # the checks — interpolate on a step the caller reports. Without one
+        # they would sit at their band's floor for their whole duration.
+        steps = max(0, int(state.get("steps") or 0))
+        step = max(0, int(state.get("step") or 0))
+        fraction = min(1.0, step / steps) if steps else 0.0
     return low + span * fraction
 
 
@@ -1120,7 +1125,14 @@ def progress_detail(state: dict, workspace: Path) -> str:
         parts.append(f"{retained} sources")
         parts.append(f"{pages} page{'s' if pages != 1 else ''} written")
     elif stage == "validate":
+        steps = int(state.get("steps") or 0)
+        if steps:
+            parts.append(f"check {min(int(state.get('step') or 0) + 1, steps)} of {steps}")
         parts.append(f"{count_source_pages(workspace / 'output')} source pages")
+    elif stage == "discover":
+        steps = int(state.get("steps") or 0)
+        if steps:
+            parts.append(f"{int(state.get('step') or 0)} of {steps} sources staged")
     started = state.get("started_at")
     if started:
         try:
@@ -1158,7 +1170,16 @@ def cmd_progress(args: argparse.Namespace) -> int:
     if args.stage:
         if args.stage not in PROGRESS_STAGES:
             raise ValueError(f"unknown stage: {args.stage}")
+        if args.stage != state.get("stage"):
+            # Step counters belong to one stage; carrying them over would put
+            # the next stage straight at the position the last one ended on.
+            state.pop("step", None)
+            state.pop("steps", None)
         state["stage"] = args.stage
+    if args.steps is not None:
+        state["steps"] = max(0, args.steps)
+    if args.step is not None:
+        state["step"] = max(0, args.step)
 
     # Retained count is read from the index rather than passed in, so it cannot
     # drift from what is actually on disk.
@@ -1352,6 +1373,8 @@ def main() -> int:
     progress.add_argument("--approved", type=int, help="sources approved for review (relevance denominator)")
     progress.add_argument("--judged", type=int, help="fallback judged count; the decision log wins when higher")
     progress.add_argument("--batch-plan", help="batch sizes as <batch>:<count>[,...], recorded once at planning")
+    progress.add_argument("--steps", type=int, help="units in this stage (staging, checks); cleared on a stage change")
+    progress.add_argument("--step", type=int, help="units of this stage finished so far")
     progress.add_argument("--json", action="store_true", help="print the state instead of the bar")
     progress.add_argument("--quiet", action="store_true", help="record without printing")
 

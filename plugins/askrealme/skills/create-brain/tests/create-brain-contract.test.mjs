@@ -172,7 +172,7 @@ test("worker models are pinned, never asked about", async () => {
   assert.match(skill, /relevance worker for every batch, each on the session default model/);
   assert.match(skill, /Start one evidence worker per window immediately, each with the Agent `model`\s*\n?parameter set to `haiku`/);
   assert.match(skill, /one reducer on the session\s*\n?default model/);
-  assert.match(skill, /launch the content inspection as one background Agent worker with the `model`\s*\n?parameter set to `haiku`/);
+  assert.match(skill, /launch the content inspection as one background\s+Agent worker with the `model` parameter set to `haiku`/);
 
   // A rejected model must not become a halt.
   assert.match(skill, /fall back to the session default and carry\s*\n?on/);
@@ -193,9 +193,14 @@ test("one progress bar spans the whole build", async () => {
   assert.match(skill, /collect_raw\.py" judged/);
   assert.match(skill, /Record irrelevant decisions too/);
   assert.match(skill, /--batch-plan "1:20,2:14"/);
-  // A countable rule gets followed; "after each group" gets improvised.
-  assert.match(skill, /After every fifth page written/);
-  assert.match(skill, /"After every fifth page" is a count, not a feeling/);
+  // Every stage moves on its own unit; none of them waits for a batch or a
+  // "group". A vague cadence is what leaves the bar still for minutes.
+  assert.match(skill, /\*\*After staging each source\*\*/);
+  assert.match(skill, /\*\*After writing each page\*\*/);
+  assert.match(skill, /\*\*After each check finishes\*\*/);
+  assert.match(skill, /a source staged, a source\s*\n?judged, a page written, a check passed/);
+  assert.match(skill, /When in doubt, render/);
+  assert.doesNotMatch(skill, /after each group of page writes/i);
 
   // The script owns the arithmetic; improvised percentages are what make a bar
   // stall at one number and then leap.
