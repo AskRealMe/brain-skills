@@ -13,6 +13,7 @@ The raw directory is a private source corpus:
 * ``add`` copies owner-supplied text files without rewriting them;
 * ``index`` registers text files placed manually under ``raw/files``;
 * ``verify`` checks index coverage and hashes;
+* ``judged`` records one relevance decision the moment a worker makes it;
 * ``progress`` renders one 0-100% bar for the whole build.
 
 Conversation discovery reuses the create-brain base extractor. Work directory
@@ -83,6 +84,10 @@ PROGRESS_EXPECTED_PAGES = 24.0
 # and `claims` are only the seed set, and real brains add their own. Count
 # every page directory except `sources`, which stage 2 writes.
 PROGRESS_SOURCES_DIR = "sources"
+# One line per relevance decision, appended by the worker that made it. The
+# parent cannot print while background workers run, so the freshness of the bar
+# depends entirely on this file being written per source rather than per batch.
+PROGRESS_JUDGED_NAME = ".progress-judged.jsonl"
 SELF_CONTAINED_PROVIDERS = frozenset(
     {"claude", "codex", "grok", "cursor", "pi", "openclaw", "hermes"}
 )
@@ -892,6 +897,80 @@ def render_document(raw_dir: Path, record: dict) -> str:
     )
 
 
+def judged_path(workspace: Path) -> Path:
+    return workspace / PROGRESS_JUDGED_NAME
+
+
+def read_judged(workspace: Path) -> list[dict]:
+    target = judged_path(workspace)
+    if not target.exists():
+        return []
+    seen: dict[str, dict] = {}
+    with target.open(encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # a torn append must not break the bar
+            if isinstance(record, dict) and record.get("id"):
+                # A retried source is judged once, not twice.
+                seen[str(record["id"])] = record
+    return list(seen.values())
+
+
+def cmd_judged(args: argparse.Namespace) -> int:
+    """Record one relevance decision, the moment it is made.
+
+    Workers call this per source rather than reporting per batch: a batch of
+    twenty can take ten minutes, and a bar that only moves when a whole batch
+    lands is a bar that sits still for ten minutes."""
+    if args.decision not in {"relevant", "irrelevant"}:
+        raise ValueError("--decision must be relevant or irrelevant")
+    workspace = Path(args.workspace).expanduser().resolve()
+    workspace.mkdir(parents=True, exist_ok=True)
+    record = {
+        "at": utc_now(),
+        "batch": args.batch,
+        "decision": args.decision,
+        "id": args.id,
+    }
+    lock_path = workspace / ".progress-judged.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            with judged_path(workspace).open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    return 0
+
+
+def batches_outstanding(state: dict, judged: list[dict]) -> list[tuple[str, int]]:
+    """Batches with sources still unjudged, as (batch, remaining) pairs.
+
+    Naming what is still running is the difference between "this is slow" and
+    "this is stuck": one worker left on ten small sessions is a wait with a
+    shape."""
+    plan = state.get("batch_plan")
+    if not isinstance(plan, dict) or not plan:
+        return []
+    done: dict[str, int] = {}
+    for record in judged:
+        batch = record.get("batch")
+        if batch is not None:
+            done[str(batch)] = done.get(str(batch), 0) + 1
+    outstanding = []
+    for batch, size in sorted(plan.items(), key=lambda item: str(item[0])):
+        remaining = max(0, int(size) - done.get(str(batch), 0))
+        if remaining > 0:
+            outstanding.append((str(batch), remaining))
+    return outstanding
+
+
 def progress_path(workspace: Path) -> Path:
     """Progress state lives at the workspace root — never in ``raw/`` (``verify``
     rejects unindexed files there) and never in ``output/`` (that directory is
@@ -987,8 +1066,9 @@ def compute_percent(state: dict, workspace: Path) -> float:
         return low
     if stage == "relevance":
         approved = max(0, int(state.get("approved") or 0))
-        judged = max(0, int(state.get("judged") or 0))
-        # A true fraction: the parent knows both numbers.
+        # Counted from the per-source decision log, so the bar is current to the
+        # last source judged rather than to the last batch that finished.
+        judged = max(len(read_judged(workspace)), int(state.get("judged") or 0))
         fraction = min(1.0, judged / approved) if approved else 0.0
     elif stage == "synthesis":
         output_dir = workspace / "output"
@@ -1023,11 +1103,17 @@ def progress_detail(state: dict, workspace: Path) -> str:
     parts: list[str] = []
     if stage == "relevance":
         approved = int(state.get("approved") or 0)
-        judged = int(state.get("judged") or 0)
-        parts.append(f"{judged}/{approved} sources judged" if approved else f"{judged} judged")
-        retained = int(state.get("retained") or 0)
-        if retained:
-            parts.append(f"{retained} kept")
+        records = read_judged(workspace)
+        judged = max(len(records), int(state.get("judged") or 0))
+        parts.append(f"{judged} of {approved} judged" if approved else f"{judged} judged")
+        kept = sum(1 for record in records if record.get("decision") == "relevant")
+        parts.append(f"{max(kept, 0)} kept")
+        outstanding = batches_outstanding(state, records)
+        if outstanding:
+            workers = "worker" if len(outstanding) == 1 else "workers"
+            detail = ", ".join(f"batch {batch}: {left} left" for batch, left in outstanding[:3])
+            more = "" if len(outstanding) <= 3 else f", +{len(outstanding) - 3} more"
+            parts.append(f"{len(outstanding)} {workers} running ({detail}{more})")
     elif stage == "synthesis":
         retained = int(state.get("retained") or 0)
         pages = count_pages(workspace / "output")
@@ -1058,6 +1144,17 @@ def cmd_progress(args: argparse.Namespace) -> int:
         state["approved"] = max(0, args.approved)
     if args.judged is not None:
         state["judged"] = max(0, args.judged)
+    if args.batch_plan:
+        plan: dict[str, int] = {}
+        for entry in args.batch_plan.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            batch, _, size = entry.partition(":")
+            if not size.strip().isdigit():
+                raise ValueError(f"--batch-plan entry must be <batch>:<count>, got {entry!r}")
+            plan[batch.strip()] = int(size)
+        state["batch_plan"] = plan
     if args.stage:
         if args.stage not in PROGRESS_STAGES:
             raise ValueError(f"unknown stage: {args.stage}")
@@ -1239,6 +1336,12 @@ def main() -> int:
     index = commands.add_parser("index", help="index files placed manually under raw/files/")
     index.add_argument("--output", required=True, help="raw directory")
 
+    judged = commands.add_parser("judged", help="record one relevance decision as it is made")
+    judged.add_argument("--workspace", required=True, help="brain workspace root")
+    judged.add_argument("--id", required=True, help="source id that was judged")
+    judged.add_argument("--decision", required=True, help="relevant or irrelevant")
+    judged.add_argument("--batch", help="batch number this source belonged to")
+
     verify = commands.add_parser("verify", help="verify raw index coverage and hashes")
     verify.add_argument("--output", required=True, help="raw directory")
 
@@ -1247,7 +1350,8 @@ def main() -> int:
     progress.add_argument("--stage", help=f"advance to a stage: {', '.join(PROGRESS_STAGES)}")
     progress.add_argument("--mode", choices=sorted(PROGRESS_WEIGHTS), help="run shape; sets the band widths")
     progress.add_argument("--approved", type=int, help="sources approved for review (relevance denominator)")
-    progress.add_argument("--judged", type=int, help="sources judged so far (relevance numerator)")
+    progress.add_argument("--judged", type=int, help="fallback judged count; the decision log wins when higher")
+    progress.add_argument("--batch-plan", help="batch sizes as <batch>:<count>[,...], recorded once at planning")
     progress.add_argument("--json", action="store_true", help="print the state instead of the bar")
     progress.add_argument("--quiet", action="store_true", help="record without printing")
 
@@ -1265,6 +1369,8 @@ def main() -> int:
             return cmd_verify(Path(args.output))
         if args.command == "progress":
             return cmd_progress(args)
+        if args.command == "judged":
+            return cmd_judged(args)
         base = load_base()
         if args.command == "discover":
             return cmd_discover(base, args)

@@ -198,16 +198,35 @@ documents only, `ingest` for an `ingest-brain` delta.
 The mode sets the band widths, so a stage that will not run collapses to zero
 width and the bar walks past it instead of leaping.
 
-Call it at these points, and nowhere else:
+Call it at these points:
 
 | When | Call |
 | --- | --- |
 | Discovery announced | `--mode <shape> --approved <count> --stage discover` |
-| Each worker reports | `--stage relevance --judged <cumulative count>` |
+| Batches planned | `--stage relevance --batch-plan "1:20,2:14"` |
+| Every time a worker reports, and at each ten-minute check | `--stage relevance` |
 | Synthesis begins | `--stage synthesis` |
-| After each group of page writes | `--stage synthesis` |
+| After every fifth page written | `--stage synthesis` |
 | Validation begins | `--stage validate` |
 | Completion report | `--stage done` |
+
+"After every fifth page" is a count, not a feeling. `--batch-plan` takes every
+batch as `<number>:<sources>` once, when the batches are packed; it is what
+lets the bar say which workers are still out.
+
+During relevance the numbers come from the decision log rather than from
+anything passed in, so a render is current to the last source judged even when
+no worker has reported:
+
+```text
+[█████████░░░░░░░░░░░░░░░░░░░░░]  31.2%  reviewing sources
+                                 19 of 29 judged · 6 kept · 2 workers running
+                                 (batch 2: 1 left, batch 3: 9 left) · 4m
+```
+
+Render whenever the turn gives you the chance. Background workers cannot print
+while they run and the parent is not continuously awake, so every opportunity
+missed is a silence the owner reads as a stall.
 
 The percentage is an estimate and the counts beside it are not; print both, and
 do not describe the percentage as remaining time. Only the completion report
@@ -399,8 +418,19 @@ Do not let another source supply missing evidence. Do not rank, score, sample,
 or prefilter the corpus; keyword frequency, native or normalized file size, path
 names, and corpus-wide statistics cannot replace semantic review.
 
-Immediately after deciding one source, leave its staged JSONL for parent-owned
-cleanup. When it is relevant, run `retain` with the staged JSONL and then use
+Immediately after deciding one source — before moving to the next, and whatever
+the decision — record it, so the bar advances per source instead of per batch:
+
+```bash
+python3 "$SKILL_DIR/scripts/collect_raw.py" judged \
+  --workspace "$BRAIN_ROOT" --id "<source-id>" \
+  --batch "<batch number>" --decision relevant|irrelevant
+```
+
+The command appends one line under a lock and is safe to call from every worker
+at once. Record irrelevant decisions too: they are most of the progress on a
+broad corpus, and omitting them makes the bar appear stuck. Then leave the
+staged JSONL for parent-owned cleanup. When it is relevant, run `retain` with the staged JSONL and then use
 the normalized events still visible in the worker context to write exactly one
 final `output/sources/<source-id>.md` page. Do not call `read --raw` to create the
 source page. The source page and retained record must describe the same staged

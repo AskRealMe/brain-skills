@@ -479,6 +479,24 @@ def count_only_grew(workspace: Path, before: float) -> bool:
     return progress_state(workspace, "--stage", "synthesis")["percent"] >= before
 
 
+def record_judged(workspace: Path, source_id: str, batch: str, decision: str) -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "judged", "--workspace", str(workspace),
+         "--id", source_id, "--batch", batch, "--decision", decision],
+        text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def progress_render(workspace: Path) -> str:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "progress", "--workspace", str(workspace)],
+        text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    return result.stdout
+
+
 def check_progress() -> None:
     """One 0-100% bar for the whole build: contiguous bands, no backwards step,
     no early 100, and a skipped stage that collapses instead of jumping."""
@@ -493,6 +511,22 @@ def check_progress() -> None:
         assert (workspace / ".progress.json").is_file(), "state must sit outside raw/ and output/"
         assert not (workspace / "raw" / ".progress.json").exists(), "state in raw/ would fail verify"
         assert not (workspace / "output" / ".progress.json").exists(), "state in output/ would upload"
+
+        # Per-source decision log: judged and kept come from disk, so a render
+        # is current to the last source judged even with no worker report.
+        progress_state(workspace, "--stage", "relevance", "--batch-plan", "1:3,2:2")
+        for index, decision in enumerate(["relevant", "irrelevant", "relevant"], start=1):
+            record_judged(workspace, f"b1-{index}", "1", decision)
+        mid = progress_state(workspace, "--stage", "relevance")
+        assert mid["percent"] > 0, mid
+        rendered = progress_render(workspace)
+        assert "3 of 20 judged" in rendered, rendered
+        assert "2 kept" in rendered, rendered
+        # Batch 1 is finished, so only batch 2 is still named as running.
+        assert "batch 2: 2 left" in rendered and "batch 1" not in rendered, rendered
+        # A replayed decision is judged once, not twice.
+        record_judged(workspace, "b1-1", "1", "relevant")
+        assert "3 of 20 judged" in progress_render(workspace)
 
         half = progress_state(workspace, "--stage", "relevance", "--judged", "10")
         assert 20 < half["percent"] < 30, half

@@ -188,6 +188,15 @@ test("one progress bar spans the whole build", async () => {
   for (const stage of ["discover", "relevance", "synthesis", "validate", "done"]) {
     assert.ok(skill.includes(`--stage ${stage}`), `missing progress checkpoint: ${stage}`);
   }
+  // Per-source, not per-batch: a batch of twenty can take ten minutes, and a
+  // bar that only moves when a batch lands sits still for all of it.
+  assert.match(skill, /collect_raw\.py" judged/);
+  assert.match(skill, /Record irrelevant decisions too/);
+  assert.match(skill, /--batch-plan "1:20,2:14"/);
+  // A countable rule gets followed; "after each group" gets improvised.
+  assert.match(skill, /After every fifth page written/);
+  assert.match(skill, /"After every fifth page" is a count, not a feeling/);
+
   // The script owns the arithmetic; improvised percentages are what make a bar
   // stall at one number and then leap.
   assert.match(skill, /Never compute, round, or adjust the number yourself/);
