@@ -89,7 +89,7 @@ test("collection retains normalized sessions and requires approved work director
   assert.match(skill, /split-normalized/);
   assert.match(skill, /contiguous event windows/);
   assert.match(skill, /one evidence worker per window/);
-  assert.match(skill, /makes exactly one `relevant` or `irrelevant` decision/);
+  assert.match(skill, /makes exactly one\s+`relevant` or `irrelevant` decision/);
   assert.match(skill, /retains the original\s+unsplit staged JSONL/);
   assert.match(skill, /Window files are temporary processing\s+units, never raw records or source pages/);
   assert.match(skill, /Workers never delete staged files or window files/);

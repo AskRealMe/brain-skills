@@ -351,8 +351,8 @@ packing so one worker can process several small sessions without receiving all
 the largest sessions. A single staged session larger than 1.5 MiB forms an
 oversized batch by itself and is still reviewed. Create one background
 relevance worker for every batch, each on the session default model, and start
-all workers immediately. Do not
-reduce the worker count, delegate the complete corpus to one worker, or process
+all workers immediately. Do not reduce the worker count, delegate the complete
+corpus to one worker, or process
 relevance in the parent. If any required worker cannot be created, stop and
 report the failed batch instead of falling back to a larger or sequential
 worker.
