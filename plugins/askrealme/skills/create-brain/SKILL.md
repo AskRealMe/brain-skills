@@ -49,7 +49,8 @@ The brain-id is the only identifier. Never generate, invent, or substitute one.
 Stamp it verbatim into `output/BRAIN.md` as `brain_id:` (see the output
 contract); the `upload-brain` skill uploads to exactly that brain.
 
-Still gather the two things the compile needs, using `AskUserQuestion` (its
+Still gather the two things the compile needs, using `AskUserQuestion` with the
+exact wording in [Asking the owner](#asking-the-owner) (its
 native custom-answer route is the third choice; a displayed default, timeout,
 cancellation, or empty result is not an answer — ask again and wait):
 
@@ -68,9 +69,180 @@ disambiguator or ask for an alternative — never reuse another brain's folder. 
 re-run with the same brain-id refreshes that brain (preserve `raw/`, keep the
 same `brain_id`, increment `version`).
 
-In user-facing messages, say "the person this brain represents" and "folder
-name" (not "persona"/"slug"). Describe results and next actions without
+## Asking the owner
+
+Every question below ships with its wording. Use the `question` and `header`
+verbatim; write only the two example options from context. Wording is not a
+detail here — the owner sees the question and nothing else, so an improvised
+paraphrase of the rules above is what produces "Before I discover any source, I
+need to know who this brain represents", which reads as the skill narrating its
+own control flow at someone who just wants to make a brain.
+
+**Announce every question in the normal response, immediately before you invoke
+the tool.** The question UI is easy to miss in a wall of build output, and a
+build that is silently waiting looks identical to one that is still working.
+Print this banner on its own, nothing after it, and reproduce it exactly:
+
+```text
+
+▌ ❓ YOUR INPUT NEEDED
+▌ <the question, verbatim>
+
+```
+
+Two lines, a bar on each, with a blank line above and below the block. The bar
+is what carries it — build output is all flush-left text and progress bars, so
+an indented block reads as something else entirely, and it costs no guess about
+how wide the terminal is. Restate the question on the second line, word for
+word as the tool will ask it, so a reader who sees only the banner still knows
+what is wanted. Print it once per question, never for a status update, and
+never as a substitute for the `AskUserQuestion` call itself.
+
+Rules for anything you do have to write yourself, including the examples:
+
+- Plain second person. No word the owner would not use in conversation:
+  never *persona*, *slug*, *scope*, *corpus*, *normalize*, *evidence*,
+  *discovery*, *gate*, *artifact*, *invoke*, *retain*, *source directory*.
+- Never narrate what you are about to do, why you need the answer, or what
+  happens next. No "before I…", "I need to…", "in order to…".
+- Question under about fifteen words. Options one to four words, with the
+  concrete example in the option's description.
+
+### The person this brain represents
+
+```text
+header:   Whose voice
+question: When someone asks this brain a question, who are they hearing from?
+```
+
+Two options, each a short description of a person, drawn from the brain name.
+
+This asks who the brain **answers as** — never who will be asking it. "Who
+would talk to your brain" is a different question with a different answer, and
+taking the audience as the voice makes the brain answer as the wrong person for
+the rest of its life. If the owner's reply names an audience instead
+("junior engineers", "my clients"), ask once more rather than accepting it.
+
+### Brain scope
+
+```text
+header:   What it covers
+question: What should this brain be good at — and what should it stay out of?
+```
+
+Two options, each naming one thing it handles and one thing it does not, both
+narrower than the person above.
+
+### Written notes
+
+```text
+header:   Written notes
+question: Any write-ups to add? Retros, decision records, design notes.
+```
+
+```text
+Add these       — the <n> I found under <path>
+I'll give paths — you type where they are
+Skip            — the conversations are enough
+```
+
+### A brain already exists in that folder
+
+```text
+header:   Existing brain
+question: You already have a brain here. Update it, or start a separate one?
+```
+
+```text
+Update it            — keep what is there and add to it
+Use a different name — start a separate brain
+Cancel               — change nothing
+```
+
+In every other user-facing message, say "the person this brain represents" and
+"folder name" (not "persona"/"slug"). Describe results and next actions without
 narrating internal script mechanics.
+
+## Which model each worker runs on
+
+**Never ask the owner which model to use.** It is not their decision, they have
+no basis to make it, and every question spent on mechanics is one the build
+could have answered itself. Set the Agent `model` parameter explicitly at every
+spawn — leaving it unset is what makes a run improvise, and improvising has
+included stopping to ask.
+
+| Worker | Model | Why |
+| --- | --- | --- |
+| Relevance worker | session default | Judges scope and writes a finished source page. This is the substantive read of the owner's material. |
+| Window worker | `haiku` | Returns structured findings from one slice of an oversized session. No page, no prose. |
+| Window reducer | session default | Makes the single relevant/irrelevant call and writes the one source page. |
+| Content inspection | `haiku` | Scans finished `output/` against a fixed checklist. |
+
+If a spawn rejects the named model, fall back to the session default and carry
+on. A brain that compiles on the wrong model is a better outcome than a build
+that halts over one.
+
+## Showing progress
+
+One bar runs 0-100% across the whole build. It never restarts per stage and
+never goes backwards.
+
+```bash
+python3 "$SKILL_DIR/scripts/collect_raw.py" progress \
+  --workspace "$BRAIN_ROOT" --stage <stage> [--approved N] [--judged N]
+```
+
+Set the run shape once, at discovery, with `--mode`: `create` for a full run
+with conversation sources, `documents` when the owner interrupts to ask for
+documents only, `ingest` for an `ingest-brain` delta.
+The mode sets the band widths, so a stage that will not run collapses to zero
+width and the bar walks past it instead of leaping.
+
+Call it at these points:
+
+| When | Call |
+| --- | --- |
+| Discovery announced | `--mode <shape> --approved <count> --stage discover --steps <count> --step 0` |
+| **After staging each source** | `--step <staged so far>` |
+| Batches planned | `--stage relevance --batch-plan "1:20,2:14"` |
+| Every time a worker reports, and at each ten-minute check | `--stage relevance` |
+| Synthesis begins | `--stage synthesis` |
+| **After writing each page** | `--stage synthesis` |
+| Validation begins | `--stage validate --steps 3 --step 0` |
+| **After each check finishes** | `--step <checks done>` |
+| Completion report | `--stage done` |
+
+Every stage has a unit and the bar moves on each one: a source staged, a source
+judged, a page written, a check passed. None of them is "a group" or "a while" —
+those get improvised, and improvising is what leaves the bar still for minutes.
+
+`--steps`/`--step` interpolate the stages with nothing on disk to count, and
+clear themselves on a stage change. `--batch-plan` takes every batch as
+`<number>:<sources>` once, when the batches are packed; it is what lets the bar
+say which workers are still out.
+
+Rendering costs one fast local command and no model call. When in doubt, render:
+a line too many is noise, a line too few is a build that looks hung.
+
+During relevance the numbers come from the decision log rather than from
+anything passed in, so a render is current to the last source judged even when
+no worker has reported:
+
+```text
+[█████████░░░░░░░░░░░░░░░░░░░░░]  31.2%  reviewing sources
+                                 19 of 29 judged · 6 kept · 2 workers running
+                                 (batch 2: 1 left, batch 3: 9 left) · 4m
+```
+
+Render whenever the turn gives you the chance. Background workers cannot print
+while they run and the parent is not continuously awake, so every opportunity
+missed is a silence the owner reads as a stall.
+
+The percentage is an estimate and the counts beside it are not; print both, and
+do not describe the percentage as remaining time. Only the completion report
+may show 100%. Never compute, round, or adjust the number yourself — the
+command owns it, reads the workspace for its own counts, and holds the bar
+steady when a recount would move it backwards.
 
 ## Workspace
 
@@ -111,8 +283,8 @@ in the transferable output.
 
 If the normalized folder name matches an existing direct child directory,
 explain that the operation will refresh the existing brain and use
-`AskUserQuestion` to choose Refresh, Choose a different folder, or Cancel before
-changing it. If the owner chooses a different folder, repeat the direct-child
+`AskUserQuestion` — wording in [Asking the owner](#asking-the-owner) — to choose
+Update it, Use a different name, or Cancel before changing it. If the owner chooses a different folder, repeat the direct-child
 name check before accepting the replacement. Preserve
 `raw/`, increment the positive integer `version` in `output/BRAIN.md`, and
 keep `brain_id` set to the brain-id passed on the command line.
@@ -129,7 +301,7 @@ results to that workspace. Report that its retained evidence does not satisfy
 the current normalized-raw contract. Never mix legacy native-session copies
 with `askrealme-normalized-session-v1` records.
 
-## 1. Discover and choose source directories
+## 1. Discover source directories
 
 After the represented person, folder name, and brain scope are confirmed,
 list native conversation originals from every locally supported self-contained store without copying them:
@@ -139,34 +311,46 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" discover \
   --raw "$BRAIN_ROOT/raw"
 ```
 
-Do not read conversation bodies yet. Group the discovery result by work
-directory, rank the groups by session count, and show only the first 20 rows as
-one Markdown table with these columns: number, session count, sources, and
-directory. Render this table in the normal assistant response before invoking
-`AskUserQuestion`; the table must remain visible outside the question UI. Never
-place the table, table rows, or the full directory list inside the
-`AskUserQuestion` question, header, option labels, or option descriptions. Never
-print rows after number 20. Abbreviate the home directory as `~`. Immediately
-below the table, say that the owner can enter an absolute directory path when
-the directory they want is not shown. Then recommend a useful combination based
-only on path names and session counts, and state that no conversation content
-has been inspected.
+**Do not ask which directories to use.** Read everything discovered and let the
+relevance workers decide — they judge each source against the confirmed brain
+scope after reading it, which a person cannot do from a path name. Asking first
+put the owner's guess ahead of the filter that actually works, and the skill
+told them outright that no content had been inspected when it asked. Nothing is
+uploaded either way until `review-brain` and an explicit `upload-brain`, so the
+consent that matters is not here.
 
-Only after the normal response has finished rendering the table and its short
-recommendation, invoke `AskUserQuestion` to select the source directories. Keep
-the question itself to one short sentence that refers to the already displayed
-row numbers. Offer two useful combinations based only on the displayed metadata;
-the native custom-answer route accepts one or more displayed table numbers or
-absolute directory paths that were not shown. Resolve an entered path against
-the discovered groups and reject it when no discovered conversation uses that
-exact work directory. This selection is required. A recommendation, displayed
-default, timeout, cancellation, empty reply, or previous selection is not
-approval. End the turn and wait until the owner explicitly selects the source
-directories for this invocation.
+Do not read conversation bodies yet. Announce what is about to be read, in the
+normal response, and then keep going in the same turn — this is a notice, not a
+gate. Group the discovery result by work directory and rank by session count.
+Give the totals first, then at most five directories, then a count of the rest.
+Abbreviate the home directory as `~`:
 
-After approval, keep only discovered records whose work directory matches a
-selected row. Do not read, retain, or use records from any other directory.
-IDs already retained in `raw/index.jsonl` are omitted from discovery.
+```text
+Reading 23 sessions across 6 projects to build "<brain name>".
+Only material relevant to <scope> is kept; nothing is uploaded until
+you review it.
+
+  ~/Documents/OrangeNests   12
+  ~/Documents/BizBen         6
+  ~/Documents/yeppe          3   … and 3 more
+
+Say so now if you would rather narrow this, or use documents only.
+```
+
+Never print more than five directories, never number them for selection, and
+never place this list inside an `AskUserQuestion`. Do not print a
+recommendation: there is no longer a choice to recommend.
+
+That closing line is the escape hatch, and it is the whole reason a notice is
+enough. An owner with client work on the same machine can interrupt and name
+the directories or ask for documents only; everyone else never has to think
+about it. Honour an interruption whenever it arrives: keep only the directories
+named, or set progress `--mode documents` and skip to owner-supplied documents.
+Resolve an entered path against the discovered groups and reject it when no
+discovered conversation uses that exact work directory.
+
+Otherwise every discovered record is in scope for review. IDs already retained
+in `raw/index.jsonl` are omitted from discovery.
 
 Discovery must not expose, total, compare, or report native original file
 sizes. Never open an `original_path` directly or use another command to print a
@@ -184,7 +368,8 @@ incomplete or invented export format.
 
 Before creating relevance workers, normalize every approved source exactly once
 into temporary JSONL without placing its rendered content in the parent's model
-context. Use `read --normalized-output` and discard its standard output. Record
+context. Report progress after each one — this loop is serial and silent, and
+on a large corpus it is the first place a build appears to hang. Use `read --normalized-output` and discard its standard output. Record
 only each staged file's source ID, path, and byte count for scheduling. This
 byte count describes the canonical normalized input the worker will actually
 read; use it only to balance work, never to decide relevance or exclude a
@@ -195,8 +380,9 @@ Partition the staged files with both limits: at most 20 sources and at most
 packing so one worker can process several small sessions without receiving all
 the largest sessions. A single staged session larger than 1.5 MiB forms an
 oversized batch by itself and is still reviewed. Create one background
-relevance worker for every batch and start all workers immediately. Do not
-reduce the worker count, delegate the complete corpus to one worker, or process
+relevance worker for every batch, each on the session default model, and start
+all workers immediately. Do not reduce the worker count, delegate the complete
+corpus to one worker, or process
 relevance in the parent. If any required worker cannot be created, stop and
 report the failed batch instead of falling back to a larger or sequential
 worker.
@@ -243,8 +429,19 @@ Do not let another source supply missing evidence. Do not rank, score, sample,
 or prefilter the corpus; keyword frequency, native or normalized file size, path
 names, and corpus-wide statistics cannot replace semantic review.
 
-Immediately after deciding one source, leave its staged JSONL for parent-owned
-cleanup. When it is relevant, run `retain` with the staged JSONL and then use
+Immediately after deciding one source — before moving to the next, and whatever
+the decision — record it, so the bar advances per source instead of per batch:
+
+```bash
+python3 "$SKILL_DIR/scripts/collect_raw.py" judged \
+  --workspace "$BRAIN_ROOT" --id "<source-id>" \
+  --batch "<batch number>" --decision relevant|irrelevant
+```
+
+The command appends one line under a lock and is safe to call from every worker
+at once. Record irrelevant decisions too: they are most of the progress on a
+broad corpus, and omitting them makes the bar appear stuck. Then leave the
+staged JSONL for parent-owned cleanup. When it is relevant, run `retain` with the staged JSONL and then use
 the normalized events still visible in the worker context to write exactly one
 final `output/sources/<source-id>.md` page. Do not call `read --raw` to create the
 source page. The source page and retained record must describe the same staged
@@ -285,12 +482,13 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" split-normalized \
   --max-bytes 1572864
 ```
 
-Start one evidence worker per window immediately. A window worker reads only
-its window and returns the source ID, event range, whether the window contains
-in-scope evidence, and concise grounded findings. It must not call `retain` or
-write a source page. After all windows finish, one reducer receives only their
-structured findings and makes exactly one `relevant` or `irrelevant` decision
-for the original source ID. If relevant, the reducer retains the original
+Start one evidence worker per window immediately, each with the Agent `model`
+parameter set to `haiku`. A window worker reads only its window and returns the
+source ID, event range, whether the window contains in-scope evidence, and
+concise grounded findings. It must not call `retain` or
+write a source page. After all windows finish, one reducer on the session
+default model receives only their structured findings and makes exactly one
+`relevant` or `irrelevant` decision for the original source ID. If relevant, the reducer retains the original
 unsplit staged JSONL and writes exactly one
 `output/sources/<source-id>.md` page. Window files are temporary processing
 units, never raw records or source pages. Window workers and the reducer each
@@ -326,9 +524,9 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" cleanup-staged \
 
 After conversation collection, tell the owner where `raw/files/` is. If likely
 decision records, retrospectives, ADRs, notes, or other supported text
-documents exist, show candidate paths and counts. Use `AskUserQuestion` to
-choose Add suggested documents, Enter other paths, or Continue without
-documents. Copy only paths the owner supplies or approves:
+documents exist, show candidate paths and counts. Use `AskUserQuestion` —
+wording in [Asking the owner](#asking-the-owner) — to choose Add these, I'll
+give paths, or Skip. Copy only paths the owner supplies or approves:
 
 ```bash
 python3 "$SKILL_DIR/scripts/collect_raw.py" add \
@@ -404,8 +602,10 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" verify \
 python3 "$SKILL_DIR/scripts/lint_wiki.py" "$BRAIN_ROOT/output"
 ```
 
-Fix every reported error and rerun both checks. Do not waive failures. Then
-inspect the content directly for:
+Fix every reported error and rerun both checks, reporting progress after each.
+Do not waive failures. Then launch the content inspection as one background
+Agent worker with the `model` parameter set to `haiku` — the third check — and
+inspect for:
 
 - conflicting claims;
 - superseded claims that are not linked to their replacement;

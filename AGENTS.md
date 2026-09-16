@@ -6,6 +6,10 @@
 - Public skills: `create-brain`, `ingest-brain`, `review-brain`, and
   `upload-brain`.
 - Out of scope: the AskRealMe backend and private conversation prompts.
+- **This repository is the shipped plugin.** The dashboard tells users to
+  `/plugin marketplace add AskRealMe/brain-skills`. `AskRealMe/askrealme-skills`
+  is an older parallel copy that is ignored — do not sync with it or use it as
+  a reference; its `create-brain` predates the dashboard `brain-id` flow.
 
 ## Product flow
 

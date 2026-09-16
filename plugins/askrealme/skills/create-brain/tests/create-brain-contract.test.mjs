@@ -11,27 +11,18 @@ const repositoryReadmeUrl = new URL("../../../../../README.md", import.meta.url)
 test("identity and brain scope are confirmed before discovery", async () => {
   const skill = await readFile(skillUrl, "utf8");
 
-  const identityGate = skill.indexOf("If the represented person is missing");
-  const scopeGate = skill.indexOf("If the brain scope is missing");
-  const sourceDiscovery = skill.indexOf("## 1. Discover and choose source directories");
+  const identityGate = skill.indexOf("**the person this brain represents**");
+  const scopeGate = skill.indexOf("**brain scope**");
+  const sourceDiscovery = skill.indexOf("## 1. Discover source directories");
 
   assert.ok(identityGate >= 0, "missing identity gate");
   assert.ok(scopeGate > identityGate, "scope gate must follow identity gate");
   assert.ok(sourceDiscovery > scopeGate, "scope gate must precede discovery");
-  assert.match(skill, /Treat any non-empty text after the skill command as the represented person/);
-  assert.match(skill, /do not reinterpret it as a folder name/);
-  assert.match(skill, /never treat it as the brain scope/);
-  assert.match(skill, /Use `AskUserQuestion` for every missing or blocking owner decision/);
-  assert.match(skill, /provide exactly two concise,\s+contextual examples/);
   assert.match(skill, /native custom-answer route is the third choice/);
   assert.match(skill, /then end the\s+turn/);
-  assert.match(skill, /Do not inspect\s+conversation stores/);
-  assert.match(skill, /displayed default, timeout, cancellation, or\s+empty result is not an answer/);
-  assert.match(skill, /ask what work or experience the brain\s+should cover and what it should leave out/);
-  assert.match(skill, /make each example narrower than the represented person/);
-  assert.match(skill, /naming both a concrete included area and an excluded area/);
-  assert.match(skill, /The explicit selection or\s+custom answer is the confirmed brain scope/);
-  assert.match(skill, /Do not add target-question lists,\s+scores, source budgets, clustering, or another scope artifact/);
+  assert.match(skill, /displayed default, timeout,\s*\n?cancellation, or empty result is not an answer/);
+  assert.match(skill, /narrower than the person above/);
+  assert.match(skill, /naming one thing it handles and one thing it does\s*\n?not/);
 });
 
 test("collection retains normalized sessions and requires approved work directories", async () => {
@@ -40,20 +31,21 @@ test("collection retains normalized sessions and requires approved work director
   assert.match(skill, /raw\/\n│   ├── index\.jsonl/);
   assert.match(skill, /grok\/<source-id>\.jsonl/);
   assert.match(skill, /files\/<collection-id>\/<original-relative-path>/);
-  assert.match(skill, /show only the first 20 rows as\s+one Markdown table/);
-  assert.match(skill, /Never\s+print rows after number 20/);
-  assert.match(skill, /number, session count, sources, and\s+directory/);
-  assert.match(skill, /Render this table in the normal assistant response before invoking\s+`AskUserQuestion`/);
-  assert.match(skill, /the table must remain visible outside the question UI/);
-  assert.match(skill, /Never\s+place the table, table rows, or the full directory list inside the\s+`AskUserQuestion`/);
-  assert.match(skill, /Only after the normal response has finished rendering the table/);
-  assert.match(skill, /Keep\s+the question itself to one short sentence that refers to the already displayed\s+row numbers/);
-  assert.match(skill, /enter an absolute\s+directory path when\s+the directory they want is not shown/);
-  assert.match(skill, /invoke `AskUserQuestion` to select the source directories/);
-  assert.match(skill, /one or more displayed table numbers or\s+absolute directory paths/);
-  assert.match(skill, /reject it when no discovered conversation uses that\s+exact work directory/);
-  assert.match(skill, /This\s+selection is required/);
-  assert.match(skill, /Do not read, retain, or use records from any other directory/);
+  // Reading every discovered source is the default: the owner is told, not
+  // asked. A guess from a path name cannot beat the relevance workers, which
+  // judge each source against scope AFTER reading it, and the consent that
+  // matters is at upload, not here.
+  assert.match(skill, /\*\*Do not ask which directories to use\.\*\*/);
+  assert.match(skill, /this is a notice, not a\s*\n?gate/);
+  assert.match(skill, /Never print more than five directories, never number them for selection/);
+  assert.match(skill, /reject it when no\s*\n?discovered conversation uses that exact work directory/);
+  assert.doesNotMatch(skill, /This\s+selection is required/);
+  assert.doesNotMatch(skill, /invoke `AskUserQuestion` to select the source directories/);
+  // The escape hatch is what makes a notice sufficient rather than presumptuous.
+  assert.match(skill, /Say so now if you would rather narrow this, or use documents only/);
+  assert.match(skill, /Honour an interruption whenever it arrives/);
+  // Narrowing is now the exception, granted only on an interruption.
+  assert.match(skill, /every discovered record is in scope for review/);
   assert.match(skill, /must not expose, total, compare, or report native original file\s+sizes/);
   assert.match(skill, /Never open an `original_path`\s+directly/);
   assert.match(skill, /The `read`\s+command is the only content gateway/);
@@ -73,7 +65,7 @@ test("collection retains normalized sessions and requires approved work director
   assert.match(skill, /Use greedy size-balanced\s+packing/);
   assert.match(skill, /single staged session larger than 1\.5 MiB forms an\s+oversized batch by itself/);
   assert.match(skill, /use it only to balance work, never to decide relevance or exclude a\s+source/);
-  assert.match(skill, /Create one background\s+relevance worker for every batch and start all workers immediately/);
+  assert.match(skill, /Create one background\s+relevance worker for every batch, each on the session default model, and start\s+all workers immediately/);
   assert.match(skill, /instead of falling back to a larger or sequential\s+worker/);
   assert.match(skill, /Give each worker the confirmed brain scope/);
   assert.match(skill, /Treat a source as relevant only when it is inside the confirmed brain scope/);
@@ -97,7 +89,7 @@ test("collection retains normalized sessions and requires approved work director
   assert.match(skill, /split-normalized/);
   assert.match(skill, /contiguous event windows/);
   assert.match(skill, /one evidence worker per window/);
-  assert.match(skill, /makes exactly one `relevant` or `irrelevant` decision/);
+  assert.match(skill, /makes exactly one\s+`relevant` or `irrelevant` decision/);
   assert.match(skill, /retains the original\s+unsplit staged JSONL/);
   assert.match(skill, /Window files are temporary processing\s+units, never raw records or source pages/);
   assert.match(skill, /Workers never delete staged files or window files/);
@@ -123,19 +115,97 @@ test("collection retains normalized sessions and requires approved work director
 test("all blocking owner decisions use AskUserQuestion", async () => {
   const skill = await readFile(skillUrl, "utf8");
 
-  assert.match(skill, /\*\*folder name\*\*: a required name/);
-  assert.match(skill, /before proposing or accepting a\s+folder name, inspect only the direct child directory names under\s+`~\/ask-brain\/`/);
-  assert.match(skill, /Treat a missing `~\/ask-brain\/` directory as an empty set/);
-  assert.match(skill, /Do not\s+open any existing brain or inspect its contents during this name check/);
-  assert.match(skill, /Exclude every existing\s+direct child directory name from both examples/);
-  assert.match(skill, /compare the normalized result with the\s+existing names/);
-  assert.match(skill, /If it matches an existing\s+name, do not treat it as a new brain/);
-  assert.match(skill, /If the brain scope is missing after the represented person and folder name are\s+confirmed/);
-  assert.match(skill, /Never silently select an\s+example/);
-  assert.match(skill, /use\s+`AskUserQuestion` to choose Refresh/);
-  assert.match(skill, /repeat the direct-child\s+name check before accepting the replacement/);
-  assert.match(skill, /invoke `AskUserQuestion` to select the source directories/);
-  assert.match(skill, /Use `AskUserQuestion` to\s+choose Add suggested documents/);
+  // The folder name is derived from the brain name here, not asked for — the
+  // dashboard already named the brain. Only genuine decisions are questions.
+  assert.match(skill, /Derive the \*\*folder name\*\* for the local workspace from the brain name/);
+  assert.match(skill, /Treat a missing directory as an empty set|a missing directory is an empty set/);
+  assert.match(skill, /do not open any existing\s*\n?brain/);
+  assert.match(skill, /to choose\s*\n?Update it, Use a different name, or Cancel/);
+  assert.match(skill, /to choose Add these, I'll\s*\n?give paths, or Skip/);
+});
+
+test("every owner question ships with its literal wording", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+
+  // Improvised phrasing is what produced "Before I discover any source, I need
+  // to know who this brain represents". Each gate pins question and header.
+  assert.match(skill, /## Asking the owner/);
+  for (const [header, question] of [
+    ["Whose voice", "When someone asks this brain a question, who are they hearing from?"],
+    ["What it covers", "What should this brain be good at — and what should it stay out of?"],
+    ["Written notes", "Any write-ups to add? Retros, decision records, design notes."],
+    ["Existing brain", "You already have a brain here. Update it, or start a separate one?"],
+  ]) {
+    assert.ok(skill.includes(`header:   ${header}`), `missing header: ${header}`);
+    assert.ok(skill.includes(`question: ${question}`), `missing question: ${question}`);
+  }
+
+  // The voice question must not drift into asking who the audience is: taking
+  // the audience as the voice makes the brain answer as the wrong person.
+  assert.match(skill, /This asks who the brain \*\*answers as\*\* — never who will be asking it/);
+
+  // Vocabulary the owner would not use in conversation stays out of the UI.
+  for (const banned of ["persona", "slug", "corpus", "normalize", "artifact"]) {
+    assert.ok(skill.includes(banned), `banned-word list must still name ${banned}`);
+  }
+  assert.match(skill, /Never narrate what you are about to do/);
+
+  // A waiting question must be impossible to mistake for build output.
+  assert.match(skill, /YOUR INPUT NEEDED/);
+  assert.match(skill, /Announce every question in the normal response, immediately before you invoke\s*\n?the tool/);
+  // A left bar reads as a callout beside flush-left build output and needs no
+  // guess about terminal width. Two lines, question restated on the second.
+  assert.match(skill, /\u258c \u2753 YOUR INPUT NEEDED\n\u258c <the question, verbatim>/);
+  assert.match(skill, /Two lines, a bar on each, with a blank line above and below/);
+});
+
+test("worker models are pinned, never asked about", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+
+  // With no model named at a spawn, a run improvises — and improvising has
+  // included stopping to ask the owner Haiku or Opus, which is not their
+  // decision and not one they have any basis to make.
+  assert.match(skill, /\*\*Never ask the owner which model to use\.\*\*/);
+  assert.match(skill, /Set the Agent `model` parameter explicitly at every\s*\n?spawn/);
+
+  // Every spawn point names one, so none of them can fall back to improvising.
+  assert.match(skill, /relevance worker for every batch, each on the session default model/);
+  assert.match(skill, /Start one evidence worker per window immediately, each with the Agent `model`\s*\n?parameter set to `haiku`/);
+  assert.match(skill, /one reducer on the session\s*\n?default model/);
+  assert.match(skill, /launch the content inspection as one background\s+Agent worker with the `model` parameter set to `haiku`/);
+
+  // A rejected model must not become a halt.
+  assert.match(skill, /fall back to the session default and carry\s*\n?on/);
+});
+
+test("one progress bar spans the whole build", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+
+  assert.match(skill, /## Showing progress/);
+  assert.match(skill, /runs 0-100% across the whole build/);
+  assert.match(skill, /never restarts per stage and\s*\n?never goes backwards/);
+  // Every checkpoint the skill must call, so a stage cannot silently stall.
+  for (const stage of ["discover", "relevance", "synthesis", "validate", "done"]) {
+    assert.ok(skill.includes(`--stage ${stage}`), `missing progress checkpoint: ${stage}`);
+  }
+  // Per-source, not per-batch: a batch of twenty can take ten minutes, and a
+  // bar that only moves when a batch lands sits still for all of it.
+  assert.match(skill, /collect_raw\.py" judged/);
+  assert.match(skill, /Record irrelevant decisions too/);
+  assert.match(skill, /--batch-plan "1:20,2:14"/);
+  // Every stage moves on its own unit; none of them waits for a batch or a
+  // "group". A vague cadence is what leaves the bar still for minutes.
+  assert.match(skill, /\*\*After staging each source\*\*/);
+  assert.match(skill, /\*\*After writing each page\*\*/);
+  assert.match(skill, /\*\*After each check finishes\*\*/);
+  assert.match(skill, /a source staged, a source\s*\n?judged, a page written, a check passed/);
+  assert.match(skill, /When in doubt, render/);
+  assert.doesNotMatch(skill, /after each group of page writes/i);
+
+  // The script owns the arithmetic; improvised percentages are what make a bar
+  // stall at one number and then leap.
+  assert.match(skill, /Never compute, round, or adjust the number yourself/);
+  assert.match(skill, /Only the completion report\s*\n?may show 100%/);
 });
 
 test("plugin and marketplace publish version 1.2.1", async () => {
