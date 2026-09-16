@@ -163,6 +163,25 @@ In every other user-facing message, say "the person this brain represents" and
 "folder name" (not "persona"/"slug"). Describe results and next actions without
 narrating internal script mechanics.
 
+## Which model each worker runs on
+
+**Never ask the owner which model to use.** It is not their decision, they have
+no basis to make it, and every question spent on mechanics is one the build
+could have answered itself. Set the Agent `model` parameter explicitly at every
+spawn — leaving it unset is what makes a run improvise, and improvising has
+included stopping to ask.
+
+| Worker | Model | Why |
+| --- | --- | --- |
+| Relevance worker | session default | Judges scope and writes a finished source page. This is the substantive read of the owner's material. |
+| Window worker | `haiku` | Returns structured findings from one slice of an oversized session. No page, no prose. |
+| Window reducer | session default | Makes the single relevant/irrelevant call and writes the one source page. |
+| Content inspection | `haiku` | Scans finished `output/` against a fixed checklist. |
+
+If a spawn rejects the named model, fall back to the session default and carry
+on. A brain that compiles on the wrong model is a better outcome than a build
+that halts over one.
+
 ## Showing progress
 
 One bar runs 0-100% across the whole build. It never restarts per stage and
@@ -331,7 +350,8 @@ Partition the staged files with both limits: at most 20 sources and at most
 packing so one worker can process several small sessions without receiving all
 the largest sessions. A single staged session larger than 1.5 MiB forms an
 oversized batch by itself and is still reviewed. Create one background
-relevance worker for every batch and start all workers immediately. Do not
+relevance worker for every batch, each on the session default model, and start
+all workers immediately. Do not
 reduce the worker count, delegate the complete corpus to one worker, or process
 relevance in the parent. If any required worker cannot be created, stop and
 report the failed batch instead of falling back to a larger or sequential
@@ -421,12 +441,13 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" split-normalized \
   --max-bytes 1572864
 ```
 
-Start one evidence worker per window immediately. A window worker reads only
-its window and returns the source ID, event range, whether the window contains
-in-scope evidence, and concise grounded findings. It must not call `retain` or
-write a source page. After all windows finish, one reducer receives only their
-structured findings and makes exactly one `relevant` or `irrelevant` decision
-for the original source ID. If relevant, the reducer retains the original
+Start one evidence worker per window immediately, each with the Agent `model`
+parameter set to `haiku`. A window worker reads only its window and returns the
+source ID, event range, whether the window contains in-scope evidence, and
+concise grounded findings. It must not call `retain` or
+write a source page. After all windows finish, one reducer on the session
+default model receives only their structured findings and makes exactly one
+`relevant` or `irrelevant` decision for the original source ID. If relevant, the reducer retains the original
 unsplit staged JSONL and writes exactly one
 `output/sources/<source-id>.md` page. Window files are temporary processing
 units, never raw records or source pages. Window workers and the reducer each
@@ -541,7 +562,8 @@ python3 "$SKILL_DIR/scripts/lint_wiki.py" "$BRAIN_ROOT/output"
 ```
 
 Fix every reported error and rerun both checks. Do not waive failures. Then
-inspect the content directly for:
+launch the content inspection as one background Agent worker with the `model`
+parameter set to `haiku`, and inspect for:
 
 - conflicting claims;
 - superseded claims that are not linked to their replacement;

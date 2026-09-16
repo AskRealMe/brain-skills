@@ -65,7 +65,7 @@ test("collection retains normalized sessions and requires approved work director
   assert.match(skill, /Use greedy size-balanced\s+packing/);
   assert.match(skill, /single staged session larger than 1\.5 MiB forms an\s+oversized batch by itself/);
   assert.match(skill, /use it only to balance work, never to decide relevance or exclude a\s+source/);
-  assert.match(skill, /Create one background\s+relevance worker for every batch and start all workers immediately/);
+  assert.match(skill, /Create one background\s+relevance worker for every batch, each on the session default model, and start\s+all workers immediately/);
   assert.match(skill, /instead of falling back to a larger or sequential\s+worker/);
   assert.match(skill, /Give each worker the confirmed brain scope/);
   assert.match(skill, /Treat a source as relevant only when it is inside the confirmed brain scope/);
@@ -157,6 +157,25 @@ test("every owner question ships with its literal wording", async () => {
   // guess about terminal width. Two lines, question restated on the second.
   assert.match(skill, /\u258c \u2753 YOUR INPUT NEEDED\n\u258c <the question, verbatim>/);
   assert.match(skill, /Two lines, a bar on each, with a blank line above and below/);
+});
+
+test("worker models are pinned, never asked about", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+
+  // With no model named at a spawn, a run improvises — and improvising has
+  // included stopping to ask the owner Haiku or Opus, which is not their
+  // decision and not one they have any basis to make.
+  assert.match(skill, /\*\*Never ask the owner which model to use\.\*\*/);
+  assert.match(skill, /Set the Agent `model` parameter explicitly at every\s*\n?spawn/);
+
+  // Every spawn point names one, so none of them can fall back to improvising.
+  assert.match(skill, /relevance worker for every batch, each on the session default model/);
+  assert.match(skill, /Start one evidence worker per window immediately, each with the Agent `model`\s*\n?parameter set to `haiku`/);
+  assert.match(skill, /one reducer on the session\s*\n?default model/);
+  assert.match(skill, /launch the content inspection as one background Agent worker with the `model`\s*\n?parameter set to `haiku`/);
+
+  // A rejected model must not become a halt.
+  assert.match(skill, /fall back to the session default and carry\s*\n?on/);
 });
 
 test("one progress bar spans the whole build", async () => {
