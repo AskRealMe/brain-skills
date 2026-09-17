@@ -208,12 +208,12 @@ test("one progress bar spans the whole build", async () => {
   assert.match(skill, /Only the completion report\s*\n?may show 100%/);
 });
 
-test("plugin and marketplace publish version 1.2.1", async () => {
+test("plugin and marketplace publish version 1.3.0", async () => {
   const plugin = JSON.parse(await readFile(pluginUrl, "utf8"));
   const marketplace = JSON.parse(await readFile(marketplaceUrl, "utf8"));
 
-  assert.equal(plugin.version, "1.2.1");
-  assert.equal(marketplace.plugins[0].version, "1.2.1");
+  assert.equal(plugin.version, "1.3.0");
+  assert.equal(marketplace.plugins[0].version, "1.3.0");
 });
 
 test("public source pages map to retained indexed originals", async () => {
