@@ -208,12 +208,18 @@ test("one progress bar spans the whole build", async () => {
   assert.match(skill, /Only the completion report\s*\n?may show 100%/);
 });
 
-test("plugin and marketplace publish version 1.3.0", async () => {
+test("the plugin and the marketplace publish one agreed version", async () => {
   const plugin = JSON.parse(await readFile(pluginUrl, "utf8"));
   const marketplace = JSON.parse(await readFile(marketplaceUrl, "utf8"));
 
-  assert.equal(plugin.version, "1.3.0");
-  assert.equal(marketplace.plugins[0].version, "1.3.0");
+  // Deliberately not pinned to a literal. A pinned version makes a bump cost
+  // three edits and a forgotten bump cost nothing, which is the wrong way
+  // round — the manifests sat at 1.2.1 through fourteen commits that way.
+  // What must never drift is the two manifests agreeing: the marketplace entry
+  // is what a client compares against to decide an update exists, and the
+  // plugin manifest is what it installs.
+  assert.match(plugin.version, /^\d+\.\d+\.\d+$/, "plugin.json version is not semver");
+  assert.equal(marketplace.plugins[0].version, plugin.version, "manifest versions disagree");
 });
 
 test("public source pages map to retained indexed originals", async () => {
