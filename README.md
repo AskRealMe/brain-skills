@@ -16,32 +16,49 @@ The AskRealMe plugin provides four product skills:
 
 ## Install
 
-Install the portable Agent Skills with the open skills CLI:
-
-```bash
-npx skills add AskRealMe/askrealme-skills
-```
-
-Or install the Claude Code plugin:
+Install the Claude Code plugin:
 
 ```text
-/plugin marketplace add AskRealMe/askrealme-skills
-/plugin install askrealme@askrealme
+/plugin marketplace add AskRealMe/brain-skills
+/plugin install askrealme@brain-skills
 ```
+
+This is the supported route, and the one the AskRealMe dashboard hands you.
+
+The skills also publish through the open [skills CLI](https://github.com/vercel-labs/skills),
+which reaches Codex, Cursor and others:
+
+```bash
+npx skills add AskRealMe/brain-skills
+```
+
+That path is **not yet verified end to end**. Two known gaps: it installs the
+four skill directories but not their shared `plugins/askrealme/lib/uploader`,
+which `upload-brain` and `review-brain` resolve at `../../lib/`; and
+`create-brain` asks its questions through `AskUserQuestion` and fans relevance
+work out across background Agent workers, neither of which exists outside
+Claude Code. Expect brain creation to degrade and publishing to fail. Use the
+plugin until that is fixed.
 
 ## Create your first brain
 
-Run the creation skill with a short description of the person the brain should
-speak as and, optionally, a folder name:
+Create the brain on the [dashboard](https://www.askreal.me/dashboard) first —
+it names the brain and issues the brain-id. Then run the creation skill with
+both, exactly as the dashboard shows them:
 
 ```text
-/create-brain "a product builder who delegates software work to AI" ai-product-builder
+/create-brain "Loop engineering" cmt5cqltx000mw4xrf6rupizj
 ```
 
-You can also run `/create-brain` without arguments. It first asks which person
-or expert the brain should represent and waits for your answer before inspecting
-local conversation folders. Suggested examples are never selected on your
-behalf. If you omit the folder name, the skill derives one from your answer.
+The brain-id is required. Without it the skill stops and sends you to the
+dashboard rather than inventing one, because that id is what `upload-brain`
+later publishes to.
+
+The skill then asks two things, and only two: whose voice the brain answers in,
+and what it should cover and stay out of. It does not ask which conversation
+folders to read — it reads what it finds and keeps only material relevant to
+that scope, telling you what it is reading as it starts so you can narrow it if
+you need to. The local folder name is derived from the brain name.
 
 The skill reads supported local conversation originals in place. It copies only
 relevant originals into `~/ask-brain/<folder-name>/raw/` and writes their final
@@ -83,9 +100,9 @@ raw files are not reread, unrelated output pages remain unchanged, and the
 complete output still passes the same lint gate. Review the updated output
 before uploading it.
 
-To rebuild from the complete approved conversation set instead, run
-`create-brain` with the same folder name. Both refresh paths preserve the UUID
-recorded in root `BRAIN.md` and advance its version.
+To rebuild from the complete retained set instead, run `create-brain` again
+with the same brain-id. Both refresh paths keep the brain-id recorded in root
+`BRAIN.md` and advance its version.
 
 ## Privacy and upload boundary
 
