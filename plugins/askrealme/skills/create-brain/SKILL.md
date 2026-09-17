@@ -61,6 +61,8 @@ cancellation, or empty result is not an answer — ask again and wait):
   contextual examples, each narrower than the represented person, naming a
   concrete included area and an excluded area.
 
+After confirming brain scope, ask `Choose how to build your brain:` with `Automatic (Recommended)` and `Manual` using `AskUserQuestion`; wait for an explicit answer. For `Manual`, follow the remaining workflow below. For `Automatic`, stop and explain that the automatic workflow is not available yet.
+
 Derive the **folder name** for the local workspace from the brain name
 (lowercase kebab-case). Inspect only the direct child directory names under
 `~/ask-brain/` (a missing directory is an empty set; do not open any existing
