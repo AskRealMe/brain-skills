@@ -6,6 +6,26 @@
 - Public skills: `create-brain`, `ingest-brain`, `review-brain`, and
   `submit-brain`.
 - Out of scope: the AskRealMe backend and private conversation prompts.
+
+## Bump the version in the same commit
+
+Any change to a skill's behaviour — its prompt, its steps, the questions it
+asks, a rename, a new script — bumps `version` in **both**
+`plugins/askrealme/.claude-plugin/plugin.json` and
+`.claude-plugin/marketplace.json`, in the commit that makes the change. Never
+as a follow-up, because the follow-up is what gets forgotten.
+
+The marketplace entry is the only thing a client compares against to decide an
+update exists. An unbumped change is not shipped: installed users are never
+prompted, and `/plugin marketplace update` leaves them on what they had.
+The manifests once sat at 1.2.1 through fourteen commits that way — the whole
+naming rewrite, the progress bar, the pinned worker models — none of it
+reachable.
+
+Patch for wording, guidance and fixes. Minor for a new skill, a renamed one, a
+new subcommand, or anything that changes what a user types. The two manifests
+must always agree; a test enforces that, and deliberately does not pin the
+number, so bumping costs one edit in each file and nothing else.
 - **This repository is the shipped plugin.** The dashboard tells users to
   `/plugin marketplace add AskRealMe/brain-skills`. `AskRealMe/askrealme-skills`
   is an older parallel copy that is ignored — do not sync with it or use it as
