@@ -11,7 +11,7 @@ The AskRealMe plugin provides four product skills:
    Markdown without rebuilding older material.
 3. `review-brain` opens a loopback privacy review workspace where you can
    inspect and edit every file before publishing it.
-4. `upload-brain` uploads the reviewed brain to AskRealMe only after an explicit
+4. `submit-brain` uploads the reviewed brain to AskRealMe only after an explicit
    user action.
 
 ## Install
@@ -39,7 +39,7 @@ npx skills add AskRealMe/brain-skills
 
 That path is **not yet verified end to end**. Two known gaps: it installs the
 four skill directories but not their shared `plugins/askrealme/lib/uploader`,
-which `upload-brain` and `review-brain` resolve at `../../lib/`; and
+which `submit-brain` and `review-brain` resolve at `../../lib/`; and
 `create-brain` asks its questions through `AskUserQuestion` and fans relevance
 work out across background Agent workers, neither of which exists outside
 Claude Code. Expect brain creation to degrade and publishing to fail. Use the
@@ -56,7 +56,7 @@ both, exactly as the dashboard shows them:
 ```
 
 The brain-id is required. Without it the skill stops and sends you to the
-dashboard rather than inventing one, because that id is what `upload-brain`
+dashboard rather than inventing one, because that id is what `submit-brain`
 later publishes to.
 
 The skill then asks two things, and only two: whose voice the brain answers in,
@@ -86,7 +86,7 @@ Review the result before publishing:
 You can also upload an already reviewed brain directly:
 
 ```text
-/upload-brain /absolute/path/to/ask-brain/<folder-name>/output
+/submit-brain /absolute/path/to/ask-brain/<folder-name>/output
 ```
 
 ## Add new material to an existing brain

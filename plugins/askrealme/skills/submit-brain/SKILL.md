@@ -1,5 +1,5 @@
 ---
-name: upload-brain
+name: submit-brain
 description: Upload a completed local AskRealMe brain's output/ to the brain that already exists on the server, identified by the brain_id in BRAIN.md. Use when the user explicitly asks to publish or upload a brain they created on the dashboard. Do not use merely because a brain was created or reviewed.
 ---
 

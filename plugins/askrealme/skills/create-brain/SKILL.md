@@ -47,7 +47,7 @@ Then end the turn.
 
 The brain-id is the only identifier. Never generate, invent, or substitute one.
 Stamp it verbatim into `output/BRAIN.md` as `brain_id:` (see the output
-contract); the `upload-brain` skill uploads to exactly that brain.
+contract); the `submit-brain` skill uploads to exactly that brain.
 
 Still gather the two things the compile needs, using `AskUserQuestion` with the
 exact wording in [Asking the owner](#asking-the-owner) (its
@@ -316,7 +316,7 @@ relevance workers decide — they judge each source against the confirmed brain
 scope after reading it, which a person cannot do from a path name. Asking first
 put the owner's guess ahead of the filter that actually works, and the skill
 told them outright that no content had been inspected when it asked. Nothing is
-uploaded either way until `review-brain` and an explicit `upload-brain`, so the
+uploaded either way until `review-brain` and an explicit `submit-brain`, so the
 consent that matters is not here.
 
 Do not read conversation bodies yet. Announce what is about to be read, in the

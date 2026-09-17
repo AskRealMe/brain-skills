@@ -10,12 +10,12 @@
       "name": "askrealme",
       "displayName": "AskRealMe",
       "description": "Turn approved local work history into a portable brain, merge approved new evidence, review it locally for private information, and upload it with explicit consent.",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "source": "./plugins/askrealme",
       "category": "productivity",
       "homepage": "https://www.askreal.me",
       "repository": "https://github.com/AskRealMe/brain-skills",
-      "keywords": ["create-brain", "ingest-brain", "review-brain", "upload-brain", "privacy", "knowledge-base", "ai-brain"]
+      "keywords": ["create-brain", "ingest-brain", "review-brain", "submit-brain", "privacy", "knowledge-base", "ai-brain"]
     }
   ]
 }

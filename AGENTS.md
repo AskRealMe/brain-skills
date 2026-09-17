@@ -4,7 +4,7 @@
 - Product: turn owner-approved local material into a transferable AI brain,
   review it for private information, and upload it only after explicit consent.
 - Public skills: `create-brain`, `ingest-brain`, `review-brain`, and
-  `upload-brain`.
+  `submit-brain`.
 - Out of scope: the AskRealMe backend and private conversation prompts.
 - **This repository is the shipped plugin.** The dashboard tells users to
   `/plugin marketplace add AskRealMe/brain-skills`. `AskRealMe/askrealme-skills`

@@ -22,7 +22,7 @@ brain into an in-memory buffer snapshot and packages that same snapshot into one
 standard ZIP. It preserves UTF-8 relative paths and fixes file order and header
 timestamps so the same snapshot produces the same bytes.
 
-The uploader never rereads the directory after validation. `upload-brain` and
+The uploader never rereads the directory after validation. `submit-brain` and
 `review-brain` both use the same implementation, and review uploads also match
 the full relative-path and SHA-256 set recorded by the review session.
 
