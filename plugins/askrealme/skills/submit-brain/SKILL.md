@@ -57,9 +57,50 @@ choose them.
 - Name: the first `# ` heading in root `BRAIN.md`, or the folder identifier when
   no heading exists.
 
+## Choosing which brain
+
+Never make the owner remember a path. `create-brain` stores every brain it
+makes at `~/ask-brain/<folder-name>/`, so the set is one directory read away.
+
+1. **An absolute path in the request wins.** Use it and scan nothing — a brain
+   that was moved, or handed over by someone else, lives outside the
+   convention and is still valid.
+2. Otherwise list the workspaces:
+
+```bash
+for d in ~/ask-brain/*/; do
+  b="$d/output/BRAIN.md"; [ -f "$b" ] || continue
+  id=$(sed -n 's/^brain_id:[[:space:]]*//p' "$b" | head -1)
+  printf '%s\t%s\t%s\n' "${d%/}" "$(sed -n 's/^# //p' "$b" | head -1)" "${id:0:10}"
+done
+```
+
+3. **None** — say there is no brain here yet and point at `create-brain`. Do
+   not offer to invent one.
+4. **Exactly one** — use it. Name the brain in your reply so the owner can
+   correct you, and ask nothing: a question with one answer is a keystroke
+   charged for nothing.
+5. **More than one** — ask once, with `AskUserQuestion`:
+
+```text
+header:   Which brain
+question: Which brain is this for?
+```
+
+   One option per brain, labelled with its title — the first `# ` heading in
+   `output/BRAIN.md`. The description carries the folder name and the first ten
+   characters of `brain_id`, as `loop-engineering · cmt5cqltx0…`. Nothing stops two
+   brains sharing a title, and a title is then no longer a choice; the id
+   suffix is what tells them apart, and for a submit it is what the owner can
+   check against the dashboard. The native custom-answer route takes an
+   absolute path for anything not listed.
+
+Always pass `<workspace>/output/`, never the workspace root and never `raw/`:
+`raw/` holds the private source corpus and must not leave the machine.
+
 ## Upload
 
-1. Accept one absolute path to the `output/` directory. Ask for it when missing.
+1. Resolve the `output/` directory per [Choosing which brain](#choosing-which-brain).
 2. Resolve the shared uploader at `../../lib/upload-brain.mjs` relative to this
    skill file.
 3. Run it once:
