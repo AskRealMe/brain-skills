@@ -21,9 +21,14 @@ Install the Claude Code plugin:
 ```text
 /plugin marketplace add AskRealMe/brain-skills
 /plugin install askrealme@brain-skills
+/reload-plugins
 ```
 
 This is the supported route, and the one the AskRealMe dashboard hands you.
+`/reload-plugins` is not optional: installing writes the plugin to disk without
+activating it in the running session, so `/create-brain` does not exist until
+it runs. The same applies after `/plugin marketplace update brain-skills` —
+without a reload you keep using the version you already had.
 
 The skills also publish through the open [skills CLI](https://github.com/vercel-labs/skills),
 which reaches Codex, Cursor and others:
