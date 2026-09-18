@@ -1,13 +1,12 @@
 # Upload Brain design notes
 
-This page explains why new-brain uploads and existing-brain updates share one
+This page explains why direct submission and review uploads share one
 uploader. The executable workflow lives in [SKILL.md](SKILL.md).
 
 ## Direct backend boundary
 
 The common uploader calls the backend endpoint resolved by
-`DEFAULT_API_URL`, `resolveDraftStatusEndpoint`, `resolveDraftEndpoint`, and
-`resolveBrainArchiveEndpoint` in `plugins/askrealme/lib/upload-brain.mjs`.
+`DEFAULT_API_URL` and `resolveBrainUploadEndpoint` in `plugins/askrealme/lib/upload-brain.mjs`.
 Keeping the endpoint in code prevents long-lived documentation from becoming a
 second, stale configuration source.
 
@@ -30,24 +29,19 @@ Archive limits and path rules are exported by the common uploader and mirrored
 by backend validation. The code and its contract tests are the canonical source
 for their current values.
 
-## Draft identity
+## Dashboard identity and owner authorization
 
-A first upload cannot create an owner-bound final brain before the user signs
-in. `create-brain` puts one UUID v4 in `BRAIN.md` first. The uploader looks up
-that UUID, creates a draft with the same identity, and returns the stable
-`/brains/{uuid}/confirm` URL. The UUID also identifies the claimed brain and its
-storage prefix.
+The dashboard creates the brain and supplies its brain-id. `create-brain`
+records that id in `BRAIN.md`; submission uploads to the same existing brain.
+The server checks existence and ownership. The uploader does not create a
+brain, account, draft, or ownership-confirmation link.
 
-The server preserves the uploaded `BRAIN.md` bytes and never generates or
-rewrites its UUID. Every later upload uses the same local value to update the
-same brain.
-
-## Owner-authorized updates
-
-An existing UUID uses a browser and a short-lived loopback callback to obtain a
-one-use code tied to that owner, brain, and archive update. Login credentials do
-not enter the CLI. The uploader keeps the code in memory, consumes it once, and
-requires the response UUID to match the local brain.
+An explicit submission request or Automatic build selection starts the same
+browser authorization flow. A short-lived loopback callback obtains a one-use
+code tied to the owner and brain. Login credentials do not enter the CLI. The
+uploader keeps the code in memory, consumes it once, and requires the response
+brain-id to match the local brain. Automatic passes the known output path to
+avoid asking the owner to pick the brain again.
 
 The callback verifies a random state and the production web Origin. If opening
 the browser fails, the uploader prints the authorization URL and waits for a

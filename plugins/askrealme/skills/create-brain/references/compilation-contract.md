@@ -16,10 +16,13 @@ owner-supplied document. Read each upstream conversation exactly once through
 canonical normalized JSONL and renders those same events to the worker without
 exposing native bytes.
 
-Partition discovered conversations into batches of at most 20 sources. Start
-one background relevance worker for every batch; 274 sources require 14
-workers. Never give more than 20 sources to one worker or fall back to one
-worker for the complete corpus. Give every worker the exact owner-confirmed
+Partition conversations from the selected directories into batches of at most
+20 sources. Start one background relevance worker for every batch; 274 sources require 14
+worker assignments, not 14 simultaneous slots. Follow the creation workflow's
+[host-capacity scheduling](../SKILL.md#schedule-workers-within-host-capacity):
+start pending batches as slots become available, without asking the owner or
+changing the source set. Never give more than 20 sources to one worker or fall
+back to one worker for the complete corpus. Give every worker the exact owner-confirmed
 brain scope. Each worker owns only its assigned IDs, reads their normalized
 events, and returns one independent relevant/irrelevant decision with a
 grounded reason per ID. Delete an irrelevant source's staged JSONL. A source
@@ -36,7 +39,11 @@ create conversation source pages; after all workers finish it checks only
 complete ID, retained-record, and source-page accounting. Never use native file
 size to form a batch or relevance decision.
 
-- **Full mode (`create-brain`)**: inspect each newly discovered upstream source.
+- **Full mode (`create-brain`)**: inspect each newly discovered upstream source
+  in the directories selected by [the creation workflow](../SKILL.md#select-directories-for-the-chosen-mode).
+  Automatic project inspection only selects directories. Both build modes use
+  this same session-level evidence and compilation contract; project metadata
+  does not become retained evidence through that inspection.
 - **Delta mode (`ingest-brain`)**: use only the exact new source IDs supplied or
   approved for this invocation. Do not add older records because they look
   related, were modified recently, or have no output page.
