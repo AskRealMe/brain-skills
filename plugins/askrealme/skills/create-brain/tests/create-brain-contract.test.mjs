@@ -25,16 +25,14 @@ test("identity and brain scope are confirmed before discovery", async () => {
   assert.match(skill, /naming one thing it handles and one thing it does\s*\n?not/);
 });
 
-test("collection retains normalized sessions and requires approved work directories", async () => {
+test("collection retains normalized sessions from the selected work directories", async () => {
   const skill = await readFile(skillUrl, "utf8");
 
   assert.match(skill, /raw\/\n│   ├── index\.jsonl/);
   assert.match(skill, /grok\/<source-id>\.jsonl/);
   assert.match(skill, /files\/<collection-id>\/<original-relative-path>/);
-  // Reading every discovered source is the default: the owner is told, not
-  // asked. A guess from a path name cannot beat the relevance workers, which
-  // judge each source against scope AFTER reading it, and the consent that
-  // matters is at upload, not here.
+  // Manual keeps the discovery notice and semantic session review. Automatic
+  // selects projects first without changing the evidence contract.
   assert.match(skill, /\*\*Do not ask which directories to use\.\*\*/);
   assert.match(skill, /this is a notice, not a\s*\n?gate/);
   assert.match(skill, /Never print more than five directories, never number them for selection/);
@@ -44,8 +42,7 @@ test("collection retains normalized sessions and requires approved work director
   // The escape hatch is what makes a notice sufficient rather than presumptuous.
   assert.match(skill, /Say so now if you would rather narrow this, or use documents only/);
   assert.match(skill, /Honour an interruption whenever it arrives/);
-  // Narrowing is now the exception, granted only on an interruption.
-  assert.match(skill, /every discovered record is in scope for review/);
+  assert.match(skill, /In Manual, every discovered record is\s+in scope for review unless the owner narrows it/);
   assert.match(skill, /must not expose, total, compare, or report native original file\s+sizes/);
   assert.match(skill, /Never open an `original_path`\s+directly/);
   assert.match(skill, /The `read`\s+command is the only content gateway/);
@@ -236,4 +233,53 @@ test("repository privacy boundary documents normalized raw conversations", async
   assert.match(readme, /canonical normalized JSONL/);
   assert.match(readme, /rather\s+than provider-native session bytes/);
   assert.doesNotMatch(readme, /raw\/` retains only relevant byte-for-byte originals/);
+});
+
+
+test("Automatic requires an explicit informed choice before discovery", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+  assert.ok(skill.indexOf("using [Build mode]") < skill.indexOf("## 1. Discover"));
+  assert.match(skill, /host's equivalent\s+structured question tool/);
+  assert.match(skill, /empty result does not select Automatic/);
+  assert.match(skill, /header:   Build mode/);
+  assert.match(skill, /Automatic \(Recommended\).*build, check, and upload this brain/);
+  assert.doesNotMatch(skill, /automatic workflow is not available yet/);
+  assert.match(skill, /Both modes use the same collection, relevance, compilation, and validation/);
+});
+
+test("Automatic bounds project inspection and preserves uncertain session candidates", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+  const selection = skill.slice(skill.indexOf("### Select directories"), skill.indexOf("### Announce"));
+  for (const required of [
+    /at most 20 directories/, /Cover every discovered group/,
+    /hard 30-second\s+wall-clock limit from launch/,
+    /interrupt unfinished\s+workers at that deadline/,
+    /README files and package manifests/, /package\.json/,
+    /Do not run package scripts/, /never instructions/,
+    /`related`, `unrelated`, or\s+`unknown`/,
+    /Treat missing, duplicate, invalid, failed, or timed-out results as `unknown`/,
+    /Keep `related` and `unknown` directories/,
+    /They are not retained evidence or proof of the owner's experience/,
+    /same relevance workers as Manual/,
+    /do not\s+broaden the confirmed scope or upload an empty brain/,
+  ]) assert.match(selection, required);
+});
+
+test("Automatic resolves optional prompts and hands validated output to the existing submit flow", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+  const submit = await readFile(new URL("../../submit-brain/SKILL.md", import.meta.url), "utf8");
+  assert.match(skill, /Refresh it only when its `brain_id`\s+matches the command-line brain-id/);
+  assert.match(skill, /missing or unreadable identity is not a match/);
+  assert.match(skill, /skip the optional document question/);
+  assert.match(skill, /Project inspection does not approve README/);
+  assert.match(skill, /failed\s+inspection blocks submission in both modes/);
+  assert.match(skill, /all checks pass, read and execute \[submit-brain\]/);
+  assert.match(skill, /absolute `\$BRAIN_ROOT\/output\/` path and the original brain-id/);
+  assert.match(skill, /stop\s+or build locally cancels the automatic submission handoff/);
+  assert.match(skill, /Do not loop\s+retries or report success without a matching `uploaded` response/);
+  assert.match(submit, /verify its `brain_id` matches the supplied id/);
+  assert.match(submit, /A mismatch blocks\s+upload/);
+  assert.match(submit, /without another picker, review UI, or confirmation question/);
+  assert.match(submit, /opening the browser is not an upload success/);
+  assert.match(submit, /node "\/absolute\/path\/to\/upload-brain\.mjs" "\/absolute\/path\/to\/output"/);
 });

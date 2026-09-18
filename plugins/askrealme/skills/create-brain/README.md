@@ -7,36 +7,33 @@ rationale.
 
 ## Identity comes before discovery
 
-The represented person determines which records are relevant and how the brain
-speaks. Non-empty command arguments supply that value verbatim. An empty
-invocation stops at an `AskUserQuestion` identity choice. Project names,
-conversation counts, existing workspaces, and suggested choices cannot answer
-that question for the owner. Source discovery starts only after the owner
-explicitly describes or selects the person or expert the brain represents.
+The dashboard supplies the brain name and brain-id. The owner confirms whose
+voice the brain represents and what it covers before source discovery. Project
+names, session counts, and suggested choices cannot establish the person's
+identity or scope. The workspace folder name is derived from the brain name.
 
-The folder name is required owner input. Before suggesting one, the workflow
-reads only the existing direct child directory names under `~/ask-brain/` and
-excludes them from its two contextual examples. `AskUserQuestion` preserves its
-custom-answer route. The workflow normalizes the explicit answer to lowercase
-kebab-case but never silently selects an example. A normalized collision enters
-the explicit refresh, choose-another-folder, or cancel flow instead of silently
-creating a second brain at the same path.
+## Automatic selects projects, then uses the same compiler
 
-## Scope comes before discovery
+Manual sends discovered conversations through semantic relevance review and
+lets the owner narrow the set. Automatic first inspects project descriptions
+and package manifests to select plausibly related directories. The executable
+batch size and deadline live in [SKILL.md](SKILL.md#select-directories-for-the-chosen-mode).
+Unknown projects remain eligible for session review, so missing metadata or a
+short inspection deadline cannot silently discard useful experience.
 
-The represented person can be broader than one useful brain. Before discovery,
-the owner confirms in one question what work or experience the brain covers and
-what it leaves out. Relevance workers use that confirmed scope directly. The
-workflow does not create a separate scope artifact or add scoring, clustering,
-source budgets, or target-question planning.
+Both modes normalize and review every session in their selected directories
+through the same workers, retain the same evidence format, compile the same
+pages, and pass the same validation. Project metadata helps locate experience;
+it does not establish that the owner had that experience.
 
-## Work directories require owner approval
+## Automatic includes submission
 
-Discovery scans supported self-contained local conversation stores without
-reading conversation bodies. It groups the results by work directory and shows
-the complete list to the owner. Collection starts only after the owner selects
-one or more listed directories, and only sessions from those directories enter
-the relevance pass.
+The build-mode choice describes submission before the owner selects it.
+Automatic resolves optional document and workspace choices without another
+question and hands the validated output directly to `submit-brain`. Browser
+sign-in and authorization remain with the owner. Manual ends with local output
+for review and submission at the owner's discretion. Neither mode uploads raw
+sessions or creates an account.
 
 ## Practices need incidents
 
