@@ -18,8 +18,11 @@ exposing native bytes.
 
 Partition conversations from the selected directories into batches of at most
 20 sources. Start one background relevance worker for every batch; 274 sources require 14
-workers. Never give more than 20 sources to one worker or fall back to one
-worker for the complete corpus. Give every worker the exact owner-confirmed
+worker assignments, not 14 simultaneous slots. Follow the creation workflow's
+[host-capacity scheduling](../SKILL.md#schedule-workers-within-host-capacity):
+start pending batches as slots become available, without asking the owner or
+changing the source set. Never give more than 20 sources to one worker or fall
+back to one worker for the complete corpus. Give every worker the exact owner-confirmed
 brain scope. Each worker owns only its assigned IDs, reads their normalized
 events, and returns one independent relevant/irrelevant decision with a
 grounded reason per ID. Delete an irrelevant source's staged JSONL. A source

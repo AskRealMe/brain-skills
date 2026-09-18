@@ -48,6 +48,10 @@ without another picker, review UI, or confirmation question. A mismatch blocks
 upload. A default option, empty answer, or a Manual creation does not authorize
 this handoff. An owner instruction to stop or build locally revokes it.
 
+During this handoff, do not use question tools or ask prose questions. Report
+status or errors directly; do not ask whether to proceed or retry. The owner's
+browser authorization remains required.
+
 Use the same uploader and browser authorization below. If the owner is signed
 out, the browser handles sign-in before authorization. Keep the uploader alive
 while authorization is pending; opening the browser is not an upload success.

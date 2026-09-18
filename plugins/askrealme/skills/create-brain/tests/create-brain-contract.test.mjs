@@ -62,8 +62,8 @@ test("collection retains normalized sessions from the selected work directories"
   assert.match(skill, /Use greedy size-balanced\s+packing/);
   assert.match(skill, /single staged session larger than 1\.5 MiB forms an\s+oversized batch by itself/);
   assert.match(skill, /use it only to balance work, never to decide relevance or exclude a\s+source/);
-  assert.match(skill, /Create one background\s+relevance worker for every batch, each on the session default model, and start\s+all workers immediately/);
-  assert.match(skill, /instead of falling back to a larger or sequential\s+worker/);
+  assert.match(skill, /Create one background\s+relevance worker for every batch, each on the session default model/);
+  assert.match(skill, /starting pending batches as slots become available/);
   assert.match(skill, /Give each worker the confirmed brain scope/);
   assert.match(skill, /Treat a source as relevant only when it is inside the confirmed brain scope/);
   assert.match(skill, /Each worker owns its batch through retention/);
@@ -167,7 +167,7 @@ test("worker models are pinned, never asked about", async () => {
 
   // Every spawn point names one, so none of them can fall back to improvising.
   assert.match(skill, /relevance worker for every batch, each on the session default model/);
-  assert.match(skill, /Start one evidence worker per window immediately, each with the Agent `model`\s*\n?parameter set to `haiku`/);
+  assert.match(skill, /Start one evidence worker per window as capacity becomes available, each with\s+the Agent `model` parameter set to `haiku`/);
   assert.match(skill, /one reducer on the session\s*\n?default model/);
   assert.match(skill, /launch the content inspection as one background\s+Agent worker with the `model` parameter set to `haiku`/);
 
@@ -282,4 +282,24 @@ test("Automatic resolves optional prompts and hands validated output to the exis
   assert.match(submit, /without another picker, review UI, or confirmation question/);
   assert.match(submit, /opening the browser is not an upload success/);
   assert.match(submit, /node "\/absolute\/path\/to\/upload-brain\.mjs" "\/absolute\/path\/to\/output"/);
+});
+
+
+test("Automatic prohibits parent and worker questions and adapts to finite capacity", async () => {
+  const skill = await readFile(skillUrl, "utf8");
+  const automatic = skill.slice(skill.indexOf("## Automatic: continue"), skill.indexOf("## Asking the owner"));
+  for (const tool of ["AskUserQuestion", "request_user_input", "request_user_input_async"]) {
+    assert.ok(automatic.includes(`\`${tool}\``));
+  }
+  assert.match(automatic, /Do not ask questions in prose/);
+  assert.match(automatic, /Include the Automatic mode and this no-question rule in every worker prompt/);
+  assert.match(automatic, /Workers report results or failures to the parent, never questions to the owner/);
+  assert.match(automatic, /A rule in this skill or its references that describes a question applies only\s+to Manual/);
+  assert.match(skill, /start only as many workers as the host\s+can run concurrently/);
+  assert.match(skill, /A capacity rejection means wait for running work to finish/);
+  assert.match(skill, /Each worker's deadline starts when it\s+actually launches/);
+  assert.match(skill, /Finish directory selection before staging sessions or planning relevance/);
+  assert.doesNotMatch(skill, /start\s+all workers immediately|If any required worker cannot be created, stop/);
+  const contract = await readFile(new URL("../references/compilation-contract.md", import.meta.url), "utf8");
+  assert.match(contract, /worker assignments, not 14 simultaneous slots/);
 });

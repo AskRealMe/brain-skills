@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before discovery. Automatic selects related projects and continues through validation to browser-authorized submission; Manual keeps the local creation workflow. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before discovery. Automatic selects related projects and continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -84,7 +84,39 @@ before writing. Never reuse another brain's folder. A re-run with the same
 brain-id refreshes that brain (preserve `raw/`, keep the same `brain_id`,
 increment `version`).
 
+## Automatic: continue without questions
+
+After the owner explicitly selects Automatic, do not call `AskUserQuestion`,
+`request_user_input`, `request_user_input_async`, or any equivalent question or
+approval tool. Do not ask questions in prose, offer choices, request permission
+for an implementation decision, or end a turn asking whether to continue.
+This rule applies to the parent, every subagent, and the submission handoff.
+Include the Automatic mode and this no-question rule in every worker prompt.
+Workers report results or failures to the parent, never questions to the owner.
+
+Resolve execution choices yourself within the confirmed identity, scope, and
+brain-id. Use the existing workflow and preserve its evidence and validation
+requirements. Concurrency limits, batch scheduling, model fallback, optional
+files, and workspace naming are implementation decisions, not owner decisions.
+A rule in this skill or its references that describes a question applies only
+to Manual once Automatic has been selected. Do not ask permission to adapt
+scheduling to the host's available capacity.
+
+Continue through directory selection, collection, compilation, validation, and
+`submit-brain` in the same run. Send declarative progress updates while working;
+a status report is not a handoff back to the owner. Recover from routine errors
+using the existing bounded retries. If no valid recovery remains, report the
+specific failure and preserve completed work without turning it into a question.
+Do not fabricate evidence, skip failed validation, expand the owner's scope,
+create accounts, or claim upload success to force completion. Browser sign-in
+and authorization still belong to the owner; wait for the existing uploader's
+callback without adding a conversational confirmation. Honour owner corrections
+or cancellation immediately.
+
 ## Asking the owner
+
+These questions apply before mode selection and during Manual. After Automatic
+is selected, follow [Automatic: continue without questions](#automatic-continue-without-questions).
 
 Every question below ships with its wording. Use the `question` and `header`
 verbatim; write only the two example options from context. Wording is not a
@@ -209,6 +241,23 @@ included stopping to ask.
 If a spawn rejects the named model, fall back to the session default and carry
 on. A brain that compiles on the wrong model is a better outcome than a build
 that halts over one.
+
+## Schedule workers within host capacity
+
+Use one worker per planned batch, but start only as many workers as the host
+can run concurrently. Apply this to directory inspection, relevance, event
+windows, retries, and content inspection. Keep unstarted batches in the parent's
+existing plan and start the next batch as a slot becomes available. Reuse or
+release completed workers using the host's lifecycle tools when needed. Do not
+create coordinator agents that consume slots merely to wait for other agents.
+
+A capacity rejection means wait for running work to finish and then launch the
+pending batch; it is not a failed source or a reason to ask the owner, stop the
+build, drop sources, or enlarge batches. Preserve all planned work and each
+batch's source, byte, and time limits. Each worker's deadline starts when it
+actually launches, not while its batch waits for a slot. Monitor running
+workers' deadlines while waiting. If worker execution is unavailable entirely,
+report that runtime failure without a question or a false completion claim.
 
 ## Showing progress
 
@@ -360,7 +409,7 @@ For Automatic:
    into batches of at most 20 directories. Cover every discovered group; 20 is
    a batch size, not a limit on projects or sessions for the brain.
 2. Start one background directory worker per batch on the session default
-   model. Give it the represented person, confirmed included and excluded
+   model, following [host capacity](#schedule-workers-within-host-capacity). Give it the represented person, confirmed included and excluded
    scope, and only its assigned directories. Each worker has a hard 30-second
    wall-clock limit from launch. Monitor each deadline and interrupt unfinished
    workers at that deadline, even when other workers are still running.
@@ -391,7 +440,10 @@ For Automatic:
 Keep these results in the worker response; do not create a directory report,
 index, or intermediate source page. README and manifest excerpts select
 projects only. They are not retained evidence or proof of the owner's experience.
-After selection, use the unchanged session staging and relevance process below.
+Finish directory selection before staging sessions or planning relevance
+batches. Plan only the selected directories, not the full discovery result
+while directory workers are still running. Then use the unchanged session
+staging and relevance process below.
 The 30-second directory limit does not replace the relevance workers' limits.
 If no directories remain, continue with existing retained evidence or already
 supplied documents. If there is no evidence, stop with that result; do not
@@ -457,12 +509,11 @@ Partition the staged files with both limits: at most 20 sources and at most
 packing so one worker can process several small sessions without receiving all
 the largest sessions. A single staged session larger than 1.5 MiB forms an
 oversized batch by itself and is still reviewed. Create one background
-relevance worker for every batch, each on the session default model, and start
-all workers immediately. Do not reduce the worker count, delegate the complete
-corpus to one worker, or process
-relevance in the parent. If any required worker cannot be created, stop and
-report the failed batch instead of falling back to a larger or sequential
-worker.
+relevance worker for every batch, each on the session default model. Launch
+batches according to [host capacity](#schedule-workers-within-host-capacity),
+starting pending batches as slots become available. Do not delegate the complete
+corpus to one worker, merge batches to fit the concurrency limit, or process
+relevance in the parent. Preserve a separate worker assignment for every batch.
 
 Every relevance worker attempt has a hard ten-minute wall-clock limit. The
 parent monitors elapsed time and interrupts an unfinished worker at ten minutes;
@@ -559,8 +610,8 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" split-normalized \
   --max-bytes 1572864
 ```
 
-Start one evidence worker per window immediately, each with the Agent `model`
-parameter set to `haiku`. A window worker reads only its window and returns the
+Start one evidence worker per window as capacity becomes available, each with
+the Agent `model` parameter set to `haiku`. A window worker reads only its window and returns the
 source ID, event range, whether the window contains in-scope evidence, and
 concise grounded findings. It must not call `retain` or
 write a source page. After all windows finish, one reducer on the session

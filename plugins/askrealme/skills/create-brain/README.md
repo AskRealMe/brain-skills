@@ -30,7 +30,10 @@ it does not establish that the owner had that experience.
 
 The build-mode choice describes submission before the owner selects it.
 Automatic resolves optional document and workspace choices without another
-question and hands the validated output directly to `submit-brain`. Browser
+question and hands the validated output directly to `submit-brain`. The parent
+and workers use neither question tools nor conversational permission requests
+after mode selection. Worker capacity limits change launch timing, not batch
+sizes or source coverage; pending batches start as slots become available. Browser
 sign-in and authorization remain with the owner. Manual ends with local output
 for review and submission at the owner's discretion. Neither mode uploads raw
 sessions or creates an account.
