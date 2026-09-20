@@ -19,7 +19,7 @@ test("identity and brain scope are confirmed before discovery", async () => {
   assert.ok(scopeGate > identityGate, "scope gate must follow identity gate");
   assert.ok(sourceDiscovery > scopeGate, "scope gate must precede discovery");
   assert.match(skill, /native custom-answer route is the third choice/);
-  assert.match(skill, /then end the\s+turn/);
+  assert.match(skill, /wait for the user's answer before ending the turn/);
   assert.match(skill, /displayed default, timeout,\s*\n?cancellation, or empty result is not an answer/);
   assert.match(skill, /narrower than the person above/);
   assert.match(skill, /naming one thing it handles and one thing it does\s*\n?not/);

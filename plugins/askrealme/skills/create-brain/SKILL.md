@@ -58,7 +58,7 @@ a default:
 
 - **the person this brain represents** — who it answers as. If it is not already
   clear from the conversation, ask with exactly two concise contextual examples,
-  then end the turn and wait.
+  then wait for the user's answer before ending the turn.
 - **brain scope** — what it covers and leaves out. Ask once with exactly two
   contextual examples, each narrower than the represented person, naming a
   concrete included area and an excluded area.
