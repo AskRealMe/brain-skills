@@ -10,11 +10,7 @@ rationale.
 The dashboard supplies the brain name and brain-id. The owner confirms whose
 voice the brain represents and what it covers before source discovery. Project
 names, session counts, and suggested choices cannot establish the person's
-identity or scope. Each answer informs the next question, so the host question
-tool presents one question and waits for its answer before continuing. Hosts
-without a question tool follow the same sequence in plain text. See
-[Asking the owner](SKILL.md#asking-the-owner) for the interaction contract.
-The workspace folder name is derived from the brain name.
+identity or scope. The workspace folder name is derived from the brain name.
 
 ## Automatic selects projects, then uses the same compiler
 

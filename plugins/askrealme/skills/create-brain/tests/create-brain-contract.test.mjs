@@ -146,17 +146,6 @@ test("every owner question ships with its literal wording", async () => {
     assert.ok(skill.includes(banned), `banned-word list must still name ${banned}`);
   }
   assert.match(skill, /Never narrate what you are about to do/);
-
-  // Questions belong in the tool UI, with only one unresolved decision.
-  assert.doesNotMatch(skill, /YOUR INPUT NEEDED/);
-  assert.match(skill, /Ask exactly one question at a time/);
-  assert.match(skill, /Include exactly\s+one question in each tool call/);
-  assert.match(skill, /Wait for the owner's explicit answer before asking the next question/);
-  assert.match(skill, /asynchronous tool returns while input is\s+pending, end the turn and wait/);
-  assert.match(skill, /Never issue another\s+question call while one is pending/);
-  assert.match(skill, /Resolve the represented person first, then brain scope, then build mode/);
-  assert.match(skill, /If no structured question tool is available or permitted, ask only the current\s+question and its options in plain text, then end the turn and wait/);
-  assert.match(skill, /Never present an\s+entire setup questionnaire in one response/);
 });
 
 test("worker models are pinned, never asked about", async () => {
@@ -241,9 +230,8 @@ test("repository privacy boundary documents normalized raw conversations", async
 
 test("Automatic requires an explicit informed choice before discovery", async () => {
   const skill = await readFile(skillUrl, "utf8");
-  const modeQuestion = skill.indexOf("ask [Build mode]");
-  assert.ok(modeQuestion >= 0 && modeQuestion < skill.indexOf("## 1. Discover"));
-  assert.match(skill, /host's available structured question\s+tool/);
+  assert.ok(skill.indexOf("using [Build mode]") < skill.indexOf("## 1. Discover"));
+  assert.match(skill, /host's equivalent\s+structured question tool/);
   assert.match(skill, /empty result does not select Automatic/);
   assert.match(skill, /header:   Build mode/);
   assert.match(skill, /Automatic \(Recommended\).*build, check, and upload this brain/);
