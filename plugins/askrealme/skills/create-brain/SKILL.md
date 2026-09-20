@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before discovery. Automatic selects related projects and continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode one question at a time through the host question tool before discovery. Automatic selects related projects and continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -49,8 +49,8 @@ The brain-id is the only identifier. Never generate, invent, or substitute one.
 Stamp it verbatim into `output/BRAIN.md` as `brain_id:` (see the output
 contract); the `submit-brain` skill uploads to exactly that brain.
 
-Still gather the two things the compile needs, using `AskUserQuestion` with the
-exact wording in [Asking the owner](#asking-the-owner) (its
+Still gather the two things the compile needs, one at a time, using the host
+question tool and the exact wording in [Asking the owner](#asking-the-owner) (its
 native custom-answer route is the third choice; a displayed default, timeout,
 cancellation, or empty result is not an answer — ask again and wait). If the
 host cannot collect an explicit required answer, stop rather than substituting
@@ -63,9 +63,9 @@ a default:
   contextual examples, each narrower than the represented person, naming a
   concrete included area and an excluded area.
 
-After confirming brain scope, invoke `AskUserQuestion` (or the host's equivalent
-structured question tool) using [Build mode](#build-mode). Do not present this
-choice only as plain text. Wait for an explicit answer; a displayed default,
+After confirming brain scope, ask [Build mode](#build-mode) through the same
+question tool. Use the single-question text fallback below only if no structured
+question tool is available or permitted. Wait for an explicit answer; a displayed default,
 timeout, cancellation, or empty result does not select Automatic.
 
 Both modes use the same collection, relevance, compilation, and validation
@@ -125,25 +125,29 @@ paraphrase of the rules above is what produces "Before I discover any source, I
 need to know who this brain represents", which reads as the skill narrating its
 own control flow at someone who just wants to make a brain.
 
-**Announce every question in the normal response, immediately before you invoke
-the tool.** The question UI is easy to miss in a wall of build output, and a
-build that is silently waiting looks identical to one that is still working.
-Print this banner on its own, nothing after it, and reproduce it exactly:
+Ask exactly one question at a time. Use the host's available structured question
+tool, such as `AskUserQuestion`, `AskQuestions`, `request_user_input`, or
+`request_user_input_async`, when permitted in the current mode. Include exactly
+one question in each tool call, even when the tool supports multiple questions.
+Keep the options inside the tool UI; do not repeat the question or options in
+prose or print a separate input-needed banner.
 
-```text
+Wait for the owner's explicit answer before asking the next question. A tool
+call returning is not an answer: if an asynchronous tool returns while input is
+pending, end the turn and wait for the owner's reply. Never issue another
+question call while one is pending, launch question calls in parallel, or append
+later questions to the same response.
 
-▌ ❓ YOUR INPUT NEEDED
-▌ <the question, verbatim>
+Resolve the represented person first, then brain scope, then build mode. Skip a
+question only when the owner has already supplied its answer explicitly and
+unambiguously. Derive scope examples from the resolved person. Do not ask the
+scope question while identity is unresolved, or offer build mode while scope is
+unresolved. Suggestions and displayed defaults do not resolve a question.
 
-```
-
-Two lines, a bar on each, with a blank line above and below the block. The bar
-is what carries it — build output is all flush-left text and progress bars, so
-an indented block reads as something else entirely, and it costs no guess about
-how wide the terminal is. Restate the question on the second line, word for
-word as the tool will ask it, so a reader who sees only the banner still knows
-what is wanted. Print it once per question, never for a status update, and
-never as a substitute for the `AskUserQuestion` call itself.
+If no structured question tool is available or permitted, ask only the current
+question and its options in plain text, then end the turn and wait. Apply the
+same order and explicit-answer requirement to this fallback. Never present an
+entire setup questionnaire in one response.
 
 Rules for anything you do have to write yourself, including the examples:
 
