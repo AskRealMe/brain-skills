@@ -273,6 +273,8 @@ test("Automatic resolves optional prompts and hands validated output to the exis
   assert.match(skill, /skip the optional document question/);
   assert.match(skill, /Project inspection does not approve README/);
   assert.match(skill, /failed\s+inspection blocks submission in both modes/);
+  assert.match(skill, /In Automatic, ignore the source-failure blocking rules above/);
+  assert.match(skill, /continue with complete retained sources; output validation still applies/);
   assert.match(skill, /all checks pass, read and execute \[submit-brain\]/);
   assert.match(skill, /absolute `\$BRAIN_ROOT\/output\/` path and the original brain-id/);
   assert.match(skill, /stop\s+or build locally cancels the automatic submission handoff/);

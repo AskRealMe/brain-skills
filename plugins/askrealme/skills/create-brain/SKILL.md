@@ -634,6 +634,8 @@ both one retained normalized record and exactly one matching source page named
 accounting. Do not remove valid records or source pages written by workers. Do
 not begin compilation until
 this accounting passes and all owner-supplied document choices are complete.
+In Automatic, ignore the source-failure blocking rules above: record failed or
+unprocessed IDs and continue with complete retained sources; output validation still applies.
 After this pass, `raw/` contains only relevant normalized conversations and
 `output/sources/` contains their final public source pages.
 
