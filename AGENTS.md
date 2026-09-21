@@ -1,8 +1,9 @@
 # AskRealMe public skills repository
 
-- Reference date: 2026-08-26.
+- Reference date: 2026-09-19.
 - Product: turn owner-approved local material into a transferable AI brain,
-  review it for private information, and upload it only after explicit consent.
+  validate it, and upload it only after explicit consent. An explicit Automatic
+  build selection includes submission; browser authorization is still required.
 - Public skills: `create-brain`, `ingest-brain`, `review-brain`, and
   `submit-brain`.
 - Out of scope: the AskRealMe backend and private conversation prompts.
@@ -34,7 +35,8 @@ number, so bumping costs one edit in each file and nothing else.
 ## Product flow
 
 ```text
-initial:     owner-approved history -> create-brain -> review-brain -> upload
+initial Manual:    owner-approved history -> create-brain -> review-brain -> submit-brain
+initial Automatic: owner-confirmed scope -> create-brain -> validation -> submit-brain
 incremental: existing output + approved Markdown -> ingest-brain -> review-brain -> upload
 ```
 
@@ -104,8 +106,9 @@ requires a new review before upload.
 - Editing updates browser drafts first. Disk writes happen only through the
   explicit save actions after checking the original SHA-256.
 - Backups and review records stay outside the transferable directory.
-- Opening or saving never uploads. Only an explicit upload action starts an
-  external request.
+- Opening or saving never uploads. Only an explicit upload action or Automatic
+  build selection starts an upload authorization request; actual upload still
+  requires browser authorization.
 - Existing-brain updates use a short-lived one-use authorization. Never expose
   it in URLs, files, logs, environment variables, or UI responses.
 

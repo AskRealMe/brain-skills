@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 
 import {
   assertSessionUnchanged,
@@ -1481,4 +1482,53 @@ test("public directory contains only the self-contained HTML", () => {
   assert.match(html, /const scope = selection \? "selection" : "file";/);
   assert.match(html, /if \(!content \|\| chatting \|\| reviewing\) return;/);
   assert.match(html, /payload\.incremental \? changedFinding : refreshedFiles\.has\(finding\.file\)/);
+});
+
+
+test("upload navigation waits for successful updates and preserves confirmation and retry", async () => {
+  const html = fs.readFileSync(new URL("../app/public/index.html", import.meta.url), "utf8");
+  const source = html.slice(html.indexOf("      async function uploadReviewedBrain()"), html.indexOf("      function renderChat()"));
+  for (const scenario of ["updated", "created", "pending", "failed"]) {
+    const navigations = [];
+    const results = [];
+    const errors = [];
+    let finishUpload;
+    let requested = false;
+    const uploadResponse = new Promise((resolve) => { finishUpload = resolve; });
+    const context = vm.createContext({
+      saving: false,
+      uploading: false,
+      state: { brainId: TEST_UUID },
+      window: {
+        confirm: () => true,
+        open: () => ({ closed: false, close() {} }),
+        location: { assign: (url) => navigations.push(url) },
+      },
+      updateControls() {},
+      dirtyNames: () => [],
+      authorizeExistingBrain: async () => ({ mode: scenario === "pending" ? "pending" : scenario === "created" ? "create" : "update" }),
+      api: async () => {
+        requested = true;
+        await uploadResponse;
+        if (scenario === "failed") throw new Error("Upload failed");
+        return { saved: { changed: [] }, sessionSync: { changed: [] }, upload: scenario === "created" ? uploadResult() : updatedUploadResult() };
+      },
+      mergeServerState() {},
+      showUploadResult: (result) => results.push(result),
+      setUploadStatus: (message, error) => { if (error) errors.push(message); },
+      toast() {},
+    });
+    vm.runInContext(source, context);
+    const running = vm.runInContext("uploadReviewedBrain()", context);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(navigations, [], `${scenario}: authorization alone must not navigate`);
+    assert.equal(requested, scenario !== "pending");
+    finishUpload();
+    await running;
+    assert.deepEqual(navigations, scenario === "updated" ? [`https://www.askreal.me/brains/${TEST_UUID}`] : []);
+    assert.equal(results.length, scenario === "created" ? 1 : 0);
+    if (scenario === "created") assert.equal(results[0].confirmUrl, uploadResult().confirmUrl);
+    assert.deepEqual(errors, scenario === "failed" ? ["Upload failed"] : []);
+    assert.equal(context.uploading, false, "controls unlock after every outcome");
+  }
 });

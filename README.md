@@ -11,8 +11,8 @@ The AskRealMe plugin provides four product skills:
    Markdown without rebuilding older material.
 3. `review-brain` opens a loopback privacy review workspace where you can
    inspect and edit every file before publishing it.
-4. `submit-brain` uploads the reviewed brain to AskRealMe only after an explicit
-   user action.
+4. `submit-brain` uploads the validated brain to AskRealMe after an explicit
+   upload request or an Automatic build selection, using browser authorization.
 
 ## Install
 
@@ -59,14 +59,26 @@ The brain-id is required. Without it the skill stops and sends you to the
 dashboard rather than inventing one, because that id is what `submit-brain`
 later publishes to.
 
-The skill then asks two things, and only two: whose voice the brain answers in,
-and what it should cover and stay out of. It does not ask which conversation
-folders to read — it reads what it finds and keeps only material relevant to
-that scope, telling you what it is reading as it starts so you can narrow it if
-you need to. The local folder name is derived from the brain name.
+The skill confirms whose voice the brain answers in and what it should cover
+and stay out of, then offers Automatic and Manual:
 
-The skill reads supported local conversation originals in place. It copies only
-relevant originals into `~/ask-brain/<folder-name>/raw/` and writes their final
+- **Automatic** builds and checks the brain, then opens the browser to authorize its upload.
+  Selecting this option includes submission; there are no further setup
+  questions. Sign in and authorize in the browser when prompted.
+- **Manual** offers optional document choices and leaves the result locally
+  for you to review and submit.
+
+The workflow is Retrieve → Compile → Validate. A search-only subagent finds
+sessions for the confirmed topic and scope without inherited conversation
+history. The parent retains normalized evidence. Compile writes matching source
+pages before synthesizing the brain.
+
+Both use the same evidence, writing, and validation workflow. You can interrupt
+to narrow the projects or stop submission. The local folder name is derived
+from the brain name.
+
+The skill reads supported local conversation originals in place. It retains only
+relevant normalized conversations in `~/ask-brain/<folder-name>/raw/` and writes their final
 public source pages immediately. Retained source material stays separate from
 the shareable result.
 
@@ -77,7 +89,7 @@ the shareable result.
 └── output/       the only directory intended for review and upload
 ```
 
-Review the result before publishing:
+For Manual, review the result before publishing:
 
 ```text
 /review-brain /absolute/path/to/ask-brain/<folder-name>/output
@@ -123,8 +135,9 @@ with the same brain-id. Both refresh paths keep the brain-id recorded in root
   Markdown file set once to the AI runtime selected by the invoking host for a
   contextual privacy pass. That runtime may use its configured model provider.
 - Opening the review workspace or saving edits never uploads a brain.
-- A request to AskRealMe begins only after the user selects the upload action;
-  the AI privacy pass is separate from that upload.
+- An upload starts only after an explicit upload request or Automatic selection
+  and browser authorization. The review workspace AI privacy pass is separate
+  from creation validation and upload.
 - Updates to an existing brain require a short-lived, one-use authorization
   tied to that brain.
 

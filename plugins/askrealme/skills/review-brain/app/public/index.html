@@ -1752,6 +1752,10 @@
           });
           const changed = [...new Set([...next.saved.changed, ...next.sessionSync.changed])];
           mergeServerState(next, changed);
+          if (next.upload.mode === "updated") {
+            window.location.assign(`https://www.askreal.me/brains/${encodeURIComponent(next.upload.uuid)}`);
+            return;
+          }
           showUploadResult(next.upload);
           setUploadStatus("");
           toast(next.upload.mode === "created"

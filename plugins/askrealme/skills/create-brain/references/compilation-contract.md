@@ -2,6 +2,9 @@
 
 This is the canonical compiler shared by `create-brain` and `ingest-brain`.
 Both modes apply the same evidence, writing, page, and validation standards.
+Workers spawned during Create Brain follow its
+[low-cost worker mapping](../SKILL.md#which-model-each-worker-runs-on), including
+any delegated synthesis or validation.
 They differ only in the indexed source set and how broadly they may rewrite an
 existing output.
 
@@ -16,27 +19,8 @@ owner-supplied document. Read each upstream conversation exactly once through
 canonical normalized JSONL and renders those same events to the worker without
 exposing native bytes.
 
-Partition discovered conversations into batches of at most 20 sources. Start
-one background relevance worker for every batch; 274 sources require 14
-workers. Never give more than 20 sources to one worker or fall back to one
-worker for the complete corpus. Give every worker the exact owner-confirmed
-brain scope. Each worker owns only its assigned IDs, reads their normalized
-events, and returns one independent relevant/irrelevant decision with a
-grounded reason per ID. Delete an irrelevant source's staged JSONL. A source
-outside the confirmed scope is irrelevant. Workers must not rank, score,
-sample, or prefilter the corpus. Each worker validates exact decision coverage
-for its own batch and immediately retains its relevant staged JSONL
-sequentially without reopening or reparsing the upstream session.
-`retain` uses a cross-process lock only for the shared `raw/index.jsonl` update,
-so different workers can retain concurrently without losing records. After each
-retain, that same worker writes the matching final source page directly from the
-normalized events already in its context. It must not call `read --raw` for
-source creation. The parent does not rejudge decisions, retain sources, or
-create conversation source pages; after all workers finish it checks only
-complete ID, retained-record, and source-page accounting. Never use native file
-size to form a batch or relevance decision.
-
-- **Full mode (`create-brain`)**: inspect each newly discovered upstream source.
+- **Full mode (`create-brain`)**: compile the retained source set prepared by
+  [the creation workflow](../SKILL.md#1-retrieve).
 - **Delta mode (`ingest-brain`)**: use only the exact new source IDs supplied or
   approved for this invocation. Do not add older records because they look
   related, were modified recently, or have no output page.

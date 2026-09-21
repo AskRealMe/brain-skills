@@ -1,6 +1,6 @@
 ---
 name: submit-brain
-description: Upload a completed local AskRealMe brain's output/ to the brain that already exists on the server, identified by the brain_id in BRAIN.md. Use when the user explicitly asks to publish or upload a brain they created on the dashboard. Do not use merely because a brain was created or reviewed.
+description: Upload a completed local AskRealMe brain's output/ to the brain that already exists on the server, identified by the brain_id in BRAIN.md. Use when the user explicitly asks to publish or upload a brain they created on the dashboard. Also use after an explicit Automatic selection in create-brain, which includes submission for that brain-id. Do not use merely because a brain was created or reviewed in Manual mode.
 ---
 
 # Upload Brain
@@ -14,8 +14,8 @@ flow and identified by `brain_id` in root `BRAIN.md`.
 - The brain already exists and is owned by the signed-in user, waiting for its
   files (`setupStep: files`). This skill uploads the files and the server marks
   the brain done. There is no draft, no ownership-confirmation link.
-- The user must already be signed in to AskReal.me; the upload is authorized by a
-  one-use, browser-authorized upload code.
+- The owner signs in to AskReal.me in the browser if needed; the upload is
+  authorized by a one-use, browser-authorized upload code.
 
 For a brain created by `create-brain`, upload the complete `output/` directory.
 Sibling `raw/`, `schema.md`, temporary build artifacts, and workspace README
@@ -38,6 +38,23 @@ user. Do NOT try to locate, verify, or diagnose the brain first:
   server does ownership and existence checks itself and returns a clear error if
   the brain is not found — surface that error to the user rather than
   investigating it against a database.
+
+## Automatic creation handoff
+
+An explicit Automatic selection in `create-brain` authorizes submission of that
+run's validated output to its supplied brain-id. Accept the absolute output
+path from that run, verify its `brain_id` matches the supplied id, and continue
+without another picker, review UI, or confirmation question. A mismatch blocks
+upload. A default option, empty answer, or a Manual creation does not authorize
+this handoff. An owner instruction to stop or build locally revokes it.
+
+During this handoff, do not use question tools or ask prose questions. Report
+status or errors directly; do not ask whether to proceed or retry. The owner's
+browser authorization remains required.
+
+Use the same uploader and browser authorization below. If the owner is signed
+out, the browser handles sign-in before authorization. Keep the uploader alive
+while authorization is pending; opening the browser is not an upload success.
 
 ## Preconditions
 

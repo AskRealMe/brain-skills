@@ -104,7 +104,11 @@ printed loopback URL. The server listens only on a random `127.0.0.1` port.
   exist, the action saves them after all SHA-256 checks and then uploads.
 - A first upload reports the existing UUID, file count, expiration time, and
   ownership-confirmation link. An already claimed UUID starts an
-  owner-authorization flow and updates that same brain.
+  owner-authorization flow and updates that same brain. After the update succeeds,
+  navigate the review tab to `https://www.askreal.me/brains/{uuid}` using the
+  validated upload result's UUID. Authorization alone must not trigger navigation;
+  failed uploads stay in the review workspace for retry. First uploads retain the
+  ownership-confirmation flow.
 - AI Chat is the brain-aware review agent. It automatically receives the active
   browser draft, current selection, file catalog, and matching privacy findings.
   It also supports ordinary questions with plain-text responses.

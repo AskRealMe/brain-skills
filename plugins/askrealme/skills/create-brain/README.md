@@ -5,38 +5,32 @@ knowledge base that can answer in that person's first person. The executable
 contract lives in [SKILL.md](SKILL.md); this page records the stable design
 rationale.
 
-## Identity comes before discovery
+## Identity comes before retrieval
 
-The represented person determines which records are relevant and how the brain
-speaks. Non-empty command arguments supply that value verbatim. An empty
-invocation stops at an `AskUserQuestion` identity choice. Project names,
-conversation counts, existing workspaces, and suggested choices cannot answer
-that question for the owner. Source discovery starts only after the owner
-explicitly describes or selects the person or expert the brain represents.
+The dashboard supplies the brain name and brain-id. The owner confirms whose
+voice the brain represents and what it covers before retrieval. Project
+names, session counts, and suggested choices cannot establish the person's
+identity or scope. The workspace folder name is derived from the brain name.
 
-The folder name is required owner input. Before suggesting one, the workflow
-reads only the existing direct child directory names under `~/ask-brain/` and
-excludes them from its two contextual examples. `AskUserQuestion` preserves its
-custom-answer route. The workflow normalizes the explicit answer to lowercase
-kebab-case but never silently selects an example. A normalized collision enters
-the explicit refresh, choose-another-folder, or cancel flow instead of silently
-creating a second brain at the same path.
+## Workflow
 
-## Scope comes before discovery
+The workflow is Retrieve → Compile → Validate. A search-only subagent receives
+the topic and scope without inherited conversation history or brain-building
+instructions. The parent retains the returned sessions in raw. Compile writes source pages from retained evidence
+before synthesis. The executable contract lives in
+[SKILL.md](SKILL.md#1-retrieve).
 
-The represented person can be broader than one useful brain. Before discovery,
-the owner confirms in one question what work or experience the brain covers and
-what it leaves out. Relevance workers use that confirmed scope directly. The
-workflow does not create a separate scope artifact or add scoring, clustering,
-source budgets, or target-question planning.
+## Automatic includes submission
 
-## Work directories require owner approval
-
-Discovery scans supported self-contained local conversation stores without
-reading conversation bodies. It groups the results by work directory and shows
-the complete list to the owner. Collection starts only after the owner selects
-one or more listed directories, and only sessions from those directories enter
-the relevance pass.
+The build-mode choice describes submission before the owner selects it.
+Automatic resolves optional document and workspace choices without another
+question and hands the validated output directly to `submit-brain`. The parent
+and workers use neither question tools nor conversational permission requests
+after mode selection. Worker capacity limits change launch timing, not batch
+sizes or source coverage; pending batches start as slots become available. Browser
+sign-in and authorization remain with the owner. Manual ends with local output
+for review and submission at the owner's discretion. Neither mode uploads raw
+sessions or creates an account.
 
 ## Practices need incidents
 
@@ -44,7 +38,7 @@ An incident alone is an anecdote. A practice alone is generic advice that any
 model could produce. Pairing the two gives readers something they can use and
 evidence that the practice came from the represented person's experience.
 
-## Collection preserves normalized evidence and precision
+## Retained evidence preserves precision
 
 Provider-native conversations are parser inputs only. Relevant conversations
 are stored as canonical normalized JSONL containing the user, assistant, tool,
@@ -53,22 +47,6 @@ remain unchanged. `raw/index.jsonl` records provenance and hashes.
 
 The compiler never fills missing details from plausibility. A brain speaks as a
 real person, so an invented detail would become a false first-person claim.
-
-## Originals are read once
-
-The workflow normalizes each upstream conversation once into temporary JSONL.
-It balances parallel worker batches with both a 20-session cap and a 1.5 MiB
-normalized-input cap. Normalized size is scheduling data only, never a relevance
-signal. An irrelevant conversation leaves no artifact. A relevant conversation
-is retained in `raw/`, and the worker writes exactly one matching public source
-page from the same in-context normalized events. The upstream conversation is
-not reopened for source generation, and no digest or card files exist.
-
-Each semantic worker attempt stops at ten minutes. A timed-out oversized session
-is split at normalized event boundaries for parallel evidence extraction, then
-reduced back to one session-level decision and one source page. Workers never
-perform staging cleanup; the parent removes explicit temporary JSONL paths with
-a 60-second command limit.
 
 ## One compiler, two source scopes
 
@@ -96,3 +74,11 @@ events. Upstream conversation stores remain unchanged.
 
 Raw material and schema notes exist to build and audit the brain. Only
 `output/` is self-contained, reviewed, and uploaded.
+
+## Worker cost
+
+Every delegated stage uses the explicit provider-specific
+[low-cost worker mapping](SKILL.md#which-model-each-worker-runs-on), including
+retries and nested workers. This keeps a costly parent model from multiplying
+across batches. Unsupported model selections follow the existing stage failure
+rules instead of silently escalating cost. The parent model is unchanged.
