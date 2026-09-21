@@ -64,7 +64,7 @@ test("every owner question ships with its literal wording", async () => {
   assert.match(skill, /Never narrate what you are about to do/);
 });
 
-test("all workers use provider-specific low-cost models without expensive fallback", async () => {
+test("non-search workers use provider-specific low-cost models without expensive fallback", async () => {
   const skill = await readFile(skillUrl, "utf8");
   assert.match(skill, /\*\*Never ask the owner which model to use\.\*\*/);
   assert.match(skill, /Set the Agent `model` parameter explicitly at every\s+spawn/);
@@ -76,7 +76,7 @@ test("all workers use provider-specific low-cost models without expensive fallba
   assert.match(skill, /not the provider of the conversation being read/);
   assert.match(skill, /Cheapest available model that supports the worker's required tools and context/);
   assert.match(skill, /never `fork_turns: "all"`/);
-  assert.match(skill, /Never fall back to the\s+parent model, session default, or a more expensive model/);
+  assert.match(skill, /never fall back to the parent model, session default, or a more expensive model/);
   assert.match(skill, /[Ff]ailed content\s+inspection blocks submission/);
   assert.doesNotMatch(skill, /on the session\s+default model|fall back to the session default|parameter set to `haiku`/);
   assert.match(skill, /content inspection as one background\s+Agent worker using the \[low-cost worker mapping\]/);
@@ -166,7 +166,7 @@ test("retrieval leaves search methods open while preserving the retained evidenc
   assert.match(skill, /Retrieve → Compile → Validate/);
   assert.doesNotMatch(skill, /Retrieval is not implemented|new brain builds are unavailable/);
   const retrieval = skill.split("## 1. Retrieve\n\n")[1].split("## 2. Compile")[0].trim();
-  assert.match(retrieval, /Start a search-only subagent with no inherited conversation history/);
+  assert.match(retrieval, /Start a search-only subagent using the parent's current model and reasoning\s+setting, with no inherited conversation history/);
   assert.match(retrieval, /Replace \{topic and scope\} with the owner's confirmed topic and scope/);
   const prompt = retrieval.split("\n").filter(line => line.startsWith("> ")).map(line => line.slice(2)).join(" ");
   assert.equal(prompt, "Find all sessions in my local .codex, .claude, and .grok where work related to {topic and scope} was carried out. Output a list of the directory paths containing those session files, together with the exact matching session file paths. Find them within five minutes. Look for session files before querying databases; finding a database does not mean session files are absent. Reuse search results instead of repeatedly scanning the same records. Keep track of elapsed time and return the paths found within five minutes, noting any unchecked areas.");
@@ -176,6 +176,10 @@ test("retrieval leaves search methods open while preserving the retained evidenc
   assert.match(retrieval, /Do not reduce the returned set to a selection\s+of representative examples/);
   assert.match(skill, /For the search-only subagent, use `fork_turns: "none"`/);
   assert.match(skill, /The search-only subagent is the exception/);
+  assert.match(skill, /Set its model explicitly to the parent's current model\s+and match the parent's reasoning setting where supported/);
+  assert.match(skill, /This also applies to\s+search retries/);
+  assert.match(skill, /All workers other than\s+the search-only subagent use the low-cost mapping/);
+  assert.doesNotMatch(skill, /Every subagent uses an explicit provider-specific low-cost model|the parent sets its model through the same mapping above/);
   assert.doesNotMatch(skill, /The parent performs Retrieve directly/);
   assert.match(skill, /Write each matching `output\/sources\/<source-id>\.md` page from the retained/);
   assert.match(skill, /## 2\. Compile/);

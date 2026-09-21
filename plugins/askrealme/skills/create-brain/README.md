@@ -77,7 +77,8 @@ Raw material and schema notes exist to build and audit the brain. Only
 
 ## Worker cost
 
-Every delegated stage uses the explicit provider-specific
+The search-only subagent matches the parent's current model and reasoning
+setting without inheriting conversation history. All other workers use the explicit provider-specific
 [low-cost worker mapping](SKILL.md#which-model-each-worker-runs-on), including
 retries and nested workers. This keeps a costly parent model from multiplying
 across batches. Unsupported model selections follow the existing stage failure
