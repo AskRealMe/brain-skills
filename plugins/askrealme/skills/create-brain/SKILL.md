@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Retrieve sessions relevant to the confirmed brain topic and scope directly without subagents and retain normalized evidence. Compile writes matching source pages and synthesizes the brain. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Use a search-only subagent without inherited history to retrieve sessions for the confirmed topic and scope; the parent retains normalized evidence. Compile writes matching source pages and synthesizes the brain. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -92,6 +92,7 @@ approval tool. Do not ask questions in prose, offer choices, request permission
 for an implementation decision, or end a turn asking whether to continue.
 This rule applies to the parent, every subagent, and the submission handoff.
 Include the Automatic mode and this no-question rule in every worker prompt.
+The search-only subagent is the exception: send only the prompt in Retrieve.
 Workers report results or failures to the parent, never questions to the owner.
 
 Resolve execution choices yourself within the confirmed identity, scope, and
@@ -209,7 +210,8 @@ narrating internal script mechanics.
 
 ## Which model each worker runs on
 
-The parent performs Retrieve directly; do not delegate Retrieve to subagents.
+The search subagent runs without inherited history; the parent handles raw
+retention after receiving its results.
 
 **Never ask the owner which model to use.** Set the Agent `model` parameter explicitly at every
 spawn, including retries and nested delegation. Every content-inspection and other delegated worker uses the same
@@ -248,6 +250,9 @@ count, never `fork_turns: "all"`. Supply the assigned scope, inputs, contracts,
 and build mode explicitly when history is not inherited. In Gemini, configure
 the subagent model itself; changing the parent's `/model` is insufficient.
 Include this policy in worker prompts for any further delegation.
+For the search-only subagent, use `fork_turns: "none"` in Codex and pass only
+the Retrieve search prompt. Do not include the contracts, build mode, or worker
+policy in its prompt; the parent sets its model through the same mapping above.
 
 If the mapped model or required effort is rejected or unavailable, report the
 worker launch failure and preserve completed work. Never fall back to the
@@ -361,9 +366,23 @@ with `askrealme-normalized-session-v1` records.
 
 ## 1. Retrieve
 
-Find all sessions in my local .codex, .claude, and .grok where work related to the confirmed brain topic and scope was carried out. Output a list of the directory paths containing those session files. Find them within five minutes.
+Start a search-only subagent with no inherited conversation history.
+Replace {topic and scope} with the owner's confirmed topic and scope,
+and send only this prompt:
 
-Then save the session files identified in that list to `raw/` using the existing canonical normalized JSONL format, and register them in `raw/index.jsonl`.
+> Find all sessions in my local .codex, .claude, and .grok where work
+> related to {topic and scope} was carried out. Output a list of the
+> directory paths containing those session files, together with the
+> exact matching session file paths. Find them within five minutes.
+
+The subagent only searches and returns the list. Do not pass this skill,
+its references, or instructions about brain creation, raw storage,
+compilation, or submission to the subagent.
+
+After receiving the list, the parent saves the identified sessions to
+`raw/` using the existing canonical normalized JSONL format and registers
+them in `raw/index.jsonl`. Do not reduce the returned set to a selection
+of representative examples.
 
 ## 2. Compile
 

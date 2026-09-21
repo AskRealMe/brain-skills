@@ -14,9 +14,9 @@ identity or scope. The workspace folder name is derived from the brain name.
 
 ## Workflow
 
-The workflow is Retrieve → Compile → Validate. The parent directly searches
-local sessions for work related to the confirmed brain topic and scope and
-retains the sessions in raw. Compile writes source pages from retained evidence
+The workflow is Retrieve → Compile → Validate. A search-only subagent receives
+the topic and scope without inherited conversation history or brain-building
+instructions. The parent retains the returned sessions in raw. Compile writes source pages from retained evidence
 before synthesis. The executable contract lives in
 [SKILL.md](SKILL.md#1-retrieve).
 

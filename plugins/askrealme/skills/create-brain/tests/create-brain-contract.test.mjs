@@ -166,8 +166,15 @@ test("retrieval leaves search methods open while preserving the retained evidenc
   assert.match(skill, /Retrieve → Compile → Validate/);
   assert.doesNotMatch(skill, /Retrieval is not implemented|new brain builds are unavailable/);
   const retrieval = skill.split("## 1. Retrieve\n\n")[1].split("## 2. Compile")[0].trim();
-  assert.equal(retrieval, "Find all sessions in my local .codex, .claude, and .grok where work related to the confirmed brain topic and scope was carried out. Output a list of the directory paths containing those session files. Find them within five minutes.\n\nThen save the session files identified in that list to `raw/` using the existing canonical normalized JSONL format, and register them in `raw/index.jsonl`.");
-  assert.match(skill, /do not delegate Retrieve to subagents/);
+  assert.match(retrieval, /Start a search-only subagent with no inherited conversation history/);
+  assert.match(retrieval, /Replace \{topic and scope\} with the owner's confirmed topic and scope/);
+  const prompt = retrieval.split("\n").filter(line => line.startsWith("> ")).map(line => line.slice(2)).join(" ");
+  assert.equal(prompt, "Find all sessions in my local .codex, .claude, and .grok where work related to {topic and scope} was carried out. Output a list of the directory paths containing those session files, together with the exact matching session file paths. Find them within five minutes.");
+  assert.match(retrieval, /the parent saves the identified sessions/);
+  assert.match(retrieval, /Do not reduce the returned set to a selection\s+of representative examples/);
+  assert.match(skill, /For the search-only subagent, use `fork_turns: "none"`/);
+  assert.match(skill, /The search-only subagent is the exception/);
+  assert.doesNotMatch(skill, /The parent performs Retrieve directly/);
   assert.match(skill, /Write each matching `output\/sources\/<source-id>\.md` page from the retained/);
   assert.match(skill, /## 2\. Compile/);
   assert.match(skill, /## 3\. Validate/);

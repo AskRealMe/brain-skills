@@ -68,10 +68,10 @@ and stay out of, then offers Automatic and Manual:
 - **Manual** offers optional document choices and leaves the result locally
   for you to review and submit.
 
-The workflow is Retrieve → Compile → Validate. Retrieval directly finds
-sessions relevant to the confirmed brain topic and scope and retains normalized
-evidence. Compile
-writes matching source pages before synthesizing the brain.
+The workflow is Retrieve → Compile → Validate. A search-only subagent finds
+sessions for the confirmed topic and scope without inherited conversation
+history. The parent retains normalized evidence. Compile writes matching source
+pages before synthesizing the brain.
 
 Both use the same evidence, writing, and validation workflow. You can interrupt
 to narrow the projects or stop submission. The local folder name is derived
