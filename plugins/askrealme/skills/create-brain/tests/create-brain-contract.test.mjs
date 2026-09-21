@@ -169,7 +169,9 @@ test("retrieval leaves search methods open while preserving the retained evidenc
   assert.match(retrieval, /Start a search-only subagent with no inherited conversation history/);
   assert.match(retrieval, /Replace \{topic and scope\} with the owner's confirmed topic and scope/);
   const prompt = retrieval.split("\n").filter(line => line.startsWith("> ")).map(line => line.slice(2)).join(" ");
-  assert.equal(prompt, "Find all sessions in my local .codex, .claude, and .grok where work related to {topic and scope} was carried out. Output a list of the directory paths containing those session files, together with the exact matching session file paths. Find them within five minutes.");
+  assert.equal(prompt, "Find all sessions in my local .codex, .claude, and .grok where work related to {topic and scope} was carried out. Output a list of the directory paths containing those session files, together with the exact matching session file paths. Find them within five minutes. Look for session files before querying databases; finding a database does not mean session files are absent. Reuse search results instead of repeatedly scanning the same records. Keep track of elapsed time and return the paths found within five minutes, noting any unchecked areas.");
+  assert.match(retrieval, /The parent tracks the five-minute deadline from launch/);
+  assert.doesNotMatch(prompt, /The parent tracks/);
   assert.match(retrieval, /the parent saves the identified sessions/);
   assert.match(retrieval, /Do not reduce the returned set to a selection\s+of representative examples/);
   assert.match(skill, /For the search-only subagent, use `fork_turns: "none"`/);

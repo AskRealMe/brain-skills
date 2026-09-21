@@ -374,8 +374,17 @@ and send only this prompt:
 > related to {topic and scope} was carried out. Output a list of the
 > directory paths containing those session files, together with the
 > exact matching session file paths. Find them within five minutes.
+>
+> Look for session files before querying databases; finding a database
+> does not mean session files are absent. Reuse search results instead
+> of repeatedly scanning the same records. Keep track of elapsed time
+> and return the paths found within five minutes, noting any unchecked areas.
 
-The subagent only searches and returns the list. Do not pass this skill,
+The subagent only searches and returns the list.
+The parent tracks the five-minute deadline from launch and, if the
+subagent is still searching, requests an immediate return of the paths
+already found rather than further exploration.
+Do not pass this skill,
 its references, or instructions about brain creation, raw storage,
 compilation, or submission to the subagent.
 
