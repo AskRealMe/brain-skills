@@ -5,26 +5,18 @@ knowledge base that can answer in that person's first person. The executable
 contract lives in [SKILL.md](SKILL.md); this page records the stable design
 rationale.
 
-## Identity comes before discovery
+## Identity comes before retrieval
 
 The dashboard supplies the brain name and brain-id. The owner confirms whose
-voice the brain represents and what it covers before source discovery. Project
+voice the brain represents and what it covers before retrieval. Project
 names, session counts, and suggested choices cannot establish the person's
 identity or scope. The workspace folder name is derived from the brain name.
 
-## Automatic selects projects, then uses the same compiler
+## Workflow
 
-Manual sends discovered conversations through semantic relevance review and
-lets the owner narrow the set. Automatic first inspects project descriptions
-and package manifests to select plausibly related directories. The executable
-batch size and deadline live in [SKILL.md](SKILL.md#select-directories-for-the-chosen-mode).
-Unknown projects remain eligible for session review, so missing metadata or a
-short inspection deadline cannot silently discard useful experience.
-
-Both modes normalize and review every session in their selected directories
-through the same workers, retain the same evidence format, compile the same
-pages, and pass the same validation. Project metadata helps locate experience;
-it does not establish that the owner had that experience.
+The workflow is Retrieve → Compile → Validate. Retrieve is not implemented in
+this branch, so new brain builds are unavailable until its contract is defined.
+The executable status lives in [SKILL.md](SKILL.md#1-retrieve).
 
 ## Automatic includes submission
 
@@ -44,7 +36,7 @@ An incident alone is an anecdote. A practice alone is generic advice that any
 model could produce. Pairing the two gives readers something they can use and
 evidence that the practice came from the represented person's experience.
 
-## Collection preserves normalized evidence and precision
+## Retained evidence preserves precision
 
 Provider-native conversations are parser inputs only. Relevant conversations
 are stored as canonical normalized JSONL containing the user, assistant, tool,
@@ -53,22 +45,6 @@ remain unchanged. `raw/index.jsonl` records provenance and hashes.
 
 The compiler never fills missing details from plausibility. A brain speaks as a
 real person, so an invented detail would become a false first-person claim.
-
-## Originals are read once
-
-The workflow normalizes each upstream conversation once into temporary JSONL.
-It balances parallel worker batches with both a 20-session cap and a 1.5 MiB
-normalized-input cap. Normalized size is scheduling data only, never a relevance
-signal. An irrelevant conversation leaves no artifact. A relevant conversation
-is retained in `raw/`, and the worker writes exactly one matching public source
-page from the same in-context normalized events. The upstream conversation is
-not reopened for source generation, and no digest or card files exist.
-
-Each semantic worker attempt stops at ten minutes. A timed-out oversized session
-is split at normalized event boundaries for parallel evidence extraction, then
-reduced back to one session-level decision and one source page. Workers never
-perform staging cleanup; the parent removes explicit temporary JSONL paths with
-a 60-second command limit.
 
 ## One compiler, two source scopes
 

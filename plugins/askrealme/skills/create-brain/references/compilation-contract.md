@@ -19,34 +19,9 @@ owner-supplied document. Read each upstream conversation exactly once through
 canonical normalized JSONL and renders those same events to the worker without
 exposing native bytes.
 
-Partition conversations from the selected directories into batches of at most
-20 sources. Start one background relevance worker for every batch; 274 sources require 14
-worker assignments, not 14 simultaneous slots. Follow the creation workflow's
-[host-capacity scheduling](../SKILL.md#schedule-workers-within-host-capacity):
-start pending batches as slots become available, without asking the owner or
-changing the source set. Never give more than 20 sources to one worker or fall
-back to one worker for the complete corpus. Give every worker the exact owner-confirmed
-brain scope. Each worker owns only its assigned IDs, reads their normalized
-events, and returns one independent relevant/irrelevant decision with a
-grounded reason per ID. Delete an irrelevant source's staged JSONL. A source
-outside the confirmed scope is irrelevant. Workers must not rank, score,
-sample, or prefilter the corpus. Each worker validates exact decision coverage
-for its own batch and immediately retains its relevant staged JSONL
-sequentially without reopening or reparsing the upstream session.
-`retain` uses a cross-process lock only for the shared `raw/index.jsonl` update,
-so different workers can retain concurrently without losing records. After each
-retain, that same worker writes the matching final source page directly from the
-normalized events already in its context. It must not call `read --raw` for
-source creation. The parent does not rejudge decisions, retain sources, or
-create conversation source pages; after all workers finish it checks only
-complete ID, retained-record, and source-page accounting. Never use native file
-size to form a batch or relevance decision.
-
-- **Full mode (`create-brain`)**: inspect each newly discovered upstream source
-  in the directories selected by [the creation workflow](../SKILL.md#select-directories-for-the-chosen-mode).
-  Automatic project inspection only selects directories. Both build modes use
-  this same session-level evidence and compilation contract; project metadata
-  does not become retained evidence through that inspection.
+- **Full mode (`create-brain`)**: compile the retained source set prepared by
+  [the creation workflow](../SKILL.md#1-retrieve). Its retrieval contract must
+  be defined before starting a new build.
 - **Delta mode (`ingest-brain`)**: use only the exact new source IDs supplied or
   approved for this invocation. Do not add older records because they look
   related, were modified recently, or have no output page.

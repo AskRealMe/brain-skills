@@ -62,12 +62,14 @@ later publishes to.
 The skill confirms whose voice the brain answers in and what it should cover
 and stay out of, then offers Automatic and Manual:
 
-- **Automatic** finds related projects from their README and package information,
-  builds and checks the brain, then opens the browser to authorize its upload.
+- **Automatic** builds and checks the brain, then opens the browser to authorize its upload.
   Selecting this option includes submission; there are no further setup
   questions. Sign in and authorize in the browser when prompted.
-- **Manual** reviews discovered conversations for relevance, offers optional
-  document choices, and leaves the result locally for you to review and submit.
+- **Manual** offers optional document choices and leaves the result locally
+  for you to review and submit.
+
+The workflow is Retrieve → Compile → Validate. Retrieve is not implemented in
+this branch; new brain builds are unavailable until its contract is defined.
 
 Both use the same evidence, writing, and validation workflow. You can interrupt
 to narrow the projects or stop submission. The local folder name is derived

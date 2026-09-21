@@ -8,16 +8,16 @@ const pluginUrl = new URL("../../../.claude-plugin/plugin.json", import.meta.url
 const marketplaceUrl = new URL("../../../../../.claude-plugin/marketplace.json", import.meta.url);
 const repositoryReadmeUrl = new URL("../../../../../README.md", import.meta.url);
 
-test("identity and brain scope are confirmed before discovery", async () => {
+test("identity and brain scope are confirmed before retrieval", async () => {
   const skill = await readFile(skillUrl, "utf8");
 
   const identityGate = skill.indexOf("**the person this brain represents**");
   const scopeGate = skill.indexOf("**brain scope**");
-  const sourceDiscovery = skill.indexOf("## 1. Discover source directories");
+  const sourceDiscovery = skill.indexOf("## 1. Retrieve");
 
   assert.ok(identityGate >= 0, "missing identity gate");
   assert.ok(scopeGate > identityGate, "scope gate must follow identity gate");
-  assert.ok(sourceDiscovery > scopeGate, "scope gate must precede discovery");
+  assert.ok(sourceDiscovery > scopeGate, "scope gate must precede retrieval");
   assert.match(skill, /native custom-answer route is the third choice/);
   assert.match(skill, /wait for the user's answer before ending the turn/);
   assert.match(skill, /displayed default, timeout,\s*\n?cancellation, or empty result is not an answer/);
@@ -25,89 +25,6 @@ test("identity and brain scope are confirmed before discovery", async () => {
   assert.match(skill, /naming one thing it handles and one thing it does\s*\n?not/);
 });
 
-test("collection retains normalized sessions from the selected work directories", async () => {
-  const skill = await readFile(skillUrl, "utf8");
-
-  assert.match(skill, /raw\/\n│   ├── index\.jsonl/);
-  assert.match(skill, /grok\/<source-id>\.jsonl/);
-  assert.match(skill, /files\/<collection-id>\/<original-relative-path>/);
-  // Manual keeps the discovery notice and semantic session review. Automatic
-  // selects projects first without changing the evidence contract.
-  assert.match(skill, /\*\*Do not ask which directories to use\.\*\*/);
-  assert.match(skill, /this is a notice, not a\s*\n?gate/);
-  assert.match(skill, /Never print more than five directories, never number them for selection/);
-  assert.match(skill, /reject it when no\s*\n?discovered conversation uses that exact work directory/);
-  assert.doesNotMatch(skill, /This\s+selection is required/);
-  assert.doesNotMatch(skill, /invoke `AskUserQuestion` to select the source directories/);
-  // The escape hatch is what makes a notice sufficient rather than presumptuous.
-  assert.match(skill, /Say so now if you would rather narrow this, or use documents only/);
-  assert.match(skill, /Honour an interruption whenever it arrives/);
-  assert.match(skill, /In Manual, every discovered record is\s+in scope for review unless the owner narrows it/);
-  assert.match(skill, /must not expose, total, compare, or report native original file\s+sizes/);
-  assert.match(skill, /Never open an `original_path`\s+directly/);
-  assert.match(skill, /The `read`\s+command is the only content gateway/);
-  assert.match(skill, /their size is not a reason to exclude a source, stop, or ask the owner to\s+reduce the approved scope/);
-  assert.match(skill, /`askrealme-normalized-session-v1`/);
-  assert.match(skill, /never copies the native session/);
-  assert.match(skill, /normalize every approved source exactly once/);
-  assert.match(skill, /worker reads only its assigned staged normalized JSONL/);
-  assert.match(skill, /must not invoke `read` on the upstream source/);
-  assert.match(skill, /--normalized-output/);
-  assert.doesNotMatch(skill, /byte-for-byte originals/);
-  assert.doesNotMatch(skill, /│   ├── _digest|│   └── cards\.md/);
-  assert.match(skill, /list native\s+conversation originals from every locally supported self-contained store\s+without copying them/);
-  assert.match(skill, /Do not reread the upstream source,\s+reread retained raw for source creation/);
-  assert.match(skill, /create a digest file, or create an\s+intermediate card/);
-  assert.match(skill, /at most 20 sources and at most\s+1,572,864 normalized bytes \(1\.5 MiB\)/);
-  assert.match(skill, /Use greedy size-balanced\s+packing/);
-  assert.match(skill, /single staged session larger than 1\.5 MiB forms an\s+oversized batch by itself/);
-  assert.match(skill, /use it only to balance work, never to decide relevance or exclude a\s+source/);
-  assert.match(skill, /Create one background\s+relevance worker for every batch, each using the \[low-cost worker mapping\]/);
-  assert.match(skill, /starting pending batches as slots become available/);
-  assert.match(skill, /Give each worker the confirmed brain scope/);
-  assert.match(skill, /Treat a source as relevant only when it is inside the confirmed brain scope/);
-  assert.match(skill, /Each worker owns its batch through retention/);
-  assert.match(skill, /Before writing, the worker validates exact ID coverage/);
-  assert.match(skill, /When it is relevant, run `retain` with the staged JSONL/);
-  assert.match(skill, /these\s+writes remain parallel and never collide/);
-  assert.match(skill, /Workers must not wait for the parent, finish the complete batch, or wait for\s+other batches/);
-  assert.match(skill, /cross-process\s+lock/);
-  assert.match(skill, /workers may retain\s+concurrently without losing index records/);
-  assert.match(skill, /`retain` is idempotent by source ID/);
-  assert.match(skill, /does not parse or reopen the upstream session/);
-  assert.match(skill, /Do not call `read --raw` to create the\s+source page/);
-  assert.match(skill, /write exactly one\s+final `output\/sources\/<source-id>\.md` page/);
-  assert.match(skill, /Grouping multiple conversations into one source page fails\s+accounting/);
-  assert.match(skill, /Give each worker the output and writing contracts exactly once/);
-  assert.match(skill, /discard its standard output/);
-  assert.match(skill, /hard ten-minute wall-clock limit/);
-  assert.match(skill, /interrupts an unfinished worker at ten minutes/);
-  assert.match(skill, /retry those IDs once/);
-  assert.match(skill, /split-normalized/);
-  assert.match(skill, /contiguous event windows/);
-  assert.match(skill, /one evidence worker per window/);
-  assert.match(skill, /makes exactly one\s+`relevant` or `irrelevant` decision/);
-  assert.match(skill, /retains the original\s+unsplit staged JSONL/);
-  assert.match(skill, /Window files are temporary processing\s+units, never raw records or source pages/);
-  assert.match(skill, /Workers never delete staged files or window files/);
-  assert.match(skill, /cleanup-staged/);
-  assert.match(skill, /deterministic command at most 60 seconds/);
-  assert.match(skill, /normalized events still visible in the worker context/);
-  assert.match(skill, /Each worker writes only source pages for\s+its exclusively assigned IDs/);
-  assert.match(skill, /The parent does not reread\s+sessions, rejudge relevance, perform retain operations, or create conversation\s+source pages/);
-  assert.match(skill, /the parent checks only\s+final accounting/);
-  assert.match(skill, /both one retained normalized record and exactly one matching source page/);
-  assert.match(skill, /Do\s+not begin compilation until\s+this accounting passes and all owner-supplied document choices are complete/);
-  assert.match(skill, /Synthesize the brain from retained raw and final source pages/);
-  assert.match(skill, /read its normalized record through `read --raw` together with its matching final\s+page/);
-  assert.match(skill, /keyword frequency, native or normalized\s+file size, path\s+names, and corpus-wide statistics cannot replace semantic\s+review/);
-  assert.match(skill, /Before discovery or any other write, verify a non-empty existing `raw\/`/);
-  assert.match(skill, /Never mix legacy native-session copies/);
-  assert.doesNotMatch(skill, /total discovered `bytes`|source larger than the byte limit/);
-  assert.doesNotMatch(skill, /Use parallel calls when the host supports them/);
-  assert.doesNotMatch(skill, /collect_raw\.py" status/);
-  assert.doesNotMatch(skill, /collect_raw\.py" prepare/);
-});
 
 test("all blocking owner decisions use AskUserQuestion", async () => {
   const skill = await readFile(skillUrl, "utf8");
@@ -118,7 +35,6 @@ test("all blocking owner decisions use AskUserQuestion", async () => {
   assert.match(skill, /Treat a missing directory as an empty set|a missing directory is an empty set/);
   assert.match(skill, /do not open any existing\s*\n?brain/);
   assert.match(skill, /to choose\s*\n?Update it, Use a different name, or Cancel/);
-  assert.match(skill, /to choose Add these, I'll\s*\n?give paths, or Skip/);
 });
 
 test("every owner question ships with its literal wording", async () => {
@@ -161,44 +77,11 @@ test("all workers use provider-specific low-cost models without expensive fallba
   assert.match(skill, /Cheapest available model that supports the worker's required tools and context/);
   assert.match(skill, /never `fork_turns: "all"`/);
   assert.match(skill, /Never fall back to the\s+parent model, session default, or a more expensive model/);
-  assert.match(skill, /failed content\s+inspection blocks submission/);
+  assert.match(skill, /[Ff]ailed content\s+inspection blocks submission/);
   assert.doesNotMatch(skill, /on the session\s+default model|fall back to the session default|parameter set to `haiku`/);
-  assert.match(skill, /directory worker per batch using the \[low-cost worker mapping\]/);
-  assert.match(skill, /relevance worker for every batch, each using the \[low-cost worker mapping\]/);
-  assert.match(skill, /one evidence worker per window as capacity becomes available, each using\s+the \[low-cost worker mapping\]/);
-  assert.match(skill, /one reducer using the same low-cost worker mapping/);
   assert.match(skill, /content inspection as one background\s+Agent worker using the \[low-cost worker mapping\]/);
 });
 
-test("one progress bar spans the whole build", async () => {
-  const skill = await readFile(skillUrl, "utf8");
-
-  assert.match(skill, /## Showing progress/);
-  assert.match(skill, /runs 0-100% across the whole build/);
-  assert.match(skill, /never restarts per stage and\s*\n?never goes backwards/);
-  // Every checkpoint the skill must call, so a stage cannot silently stall.
-  for (const stage of ["discover", "relevance", "synthesis", "validate", "done"]) {
-    assert.ok(skill.includes(`--stage ${stage}`), `missing progress checkpoint: ${stage}`);
-  }
-  // Per-source, not per-batch: a batch of twenty can take ten minutes, and a
-  // bar that only moves when a batch lands sits still for all of it.
-  assert.match(skill, /collect_raw\.py" judged/);
-  assert.match(skill, /Record irrelevant decisions too/);
-  assert.match(skill, /--batch-plan "1:20,2:14"/);
-  // Every stage moves on its own unit; none of them waits for a batch or a
-  // "group". A vague cadence is what leaves the bar still for minutes.
-  assert.match(skill, /\*\*After staging each source\*\*/);
-  assert.match(skill, /\*\*After writing each page\*\*/);
-  assert.match(skill, /\*\*After each check finishes\*\*/);
-  assert.match(skill, /a source staged, a source\s*\n?judged, a page written, a check passed/);
-  assert.match(skill, /When in doubt, render/);
-  assert.doesNotMatch(skill, /after each group of page writes/i);
-
-  // The script owns the arithmetic; improvised percentages are what make a bar
-  // stall at one number and then leap.
-  assert.match(skill, /Never compute, round, or adjust the number yourself/);
-  assert.match(skill, /Only the completion report\s*\n?may show 100%/);
-});
 
 test("the plugin and the marketplace publish one agreed version", async () => {
   const plugin = JSON.parse(await readFile(pluginUrl, "utf8"));
@@ -231,45 +114,23 @@ test("repository privacy boundary documents normalized raw conversations", async
 });
 
 
-test("Automatic requires an explicit informed choice before discovery", async () => {
+test("Automatic requires an explicit informed choice before retrieval", async () => {
   const skill = await readFile(skillUrl, "utf8");
-  assert.ok(skill.indexOf("using [Build mode]") < skill.indexOf("## 1. Discover"));
+  assert.ok(skill.indexOf("using [Build mode]") < skill.indexOf("## 1. Retrieve"));
   assert.match(skill, /host's equivalent\s+structured question tool/);
   assert.match(skill, /empty result does not select Automatic/);
   assert.match(skill, /header:   Build mode/);
   assert.match(skill, /Automatic \(Recommended\).*build, check, and upload this brain/);
   assert.doesNotMatch(skill, /automatic workflow is not available yet/);
-  assert.match(skill, /Both modes use the same collection, relevance, compilation, and validation/);
 });
 
-test("Automatic bounds project inspection and preserves uncertain session candidates", async () => {
-  const skill = await readFile(skillUrl, "utf8");
-  const selection = skill.slice(skill.indexOf("### Select directories"), skill.indexOf("### Announce"));
-  for (const required of [
-    /at most 20 directories/, /Cover every discovered group/,
-    /hard 30-second\s+wall-clock limit from launch/,
-    /interrupt unfinished\s+workers at that deadline/,
-    /README files and package manifests/, /package\.json/,
-    /Do not run package scripts/, /never instructions/,
-    /`related`, `unrelated`, or\s+`unknown`/,
-    /Treat missing, duplicate, invalid, failed, or timed-out results as `unknown`/,
-    /Keep `related` and `unknown` directories/,
-    /They are not retained evidence or proof of the owner's experience/,
-    /same relevance workers as Manual/,
-    /do not\s+broaden the confirmed scope or upload an empty brain/,
-  ]) assert.match(selection, required);
-});
 
 test("Automatic resolves optional prompts and hands validated output to the existing submit flow", async () => {
   const skill = await readFile(skillUrl, "utf8");
   const submit = await readFile(new URL("../../submit-brain/SKILL.md", import.meta.url), "utf8");
   assert.match(skill, /Refresh it only when its `brain_id`\s+matches the command-line brain-id/);
   assert.match(skill, /missing or unreadable identity is not a match/);
-  assert.match(skill, /skip the optional document question/);
-  assert.match(skill, /Project inspection does not approve README/);
   assert.match(skill, /failed\s+inspection blocks submission in both modes/);
-  assert.match(skill, /In Automatic, ignore the source-failure blocking rules above/);
-  assert.match(skill, /continue with complete retained sources; output validation still applies/);
   assert.match(skill, /all checks pass, read and execute \[submit-brain\]/);
   assert.match(skill, /absolute `\$BRAIN_ROOT\/output\/` path and the original brain-id/);
   assert.match(skill, /stop\s+or build locally cancels the automatic submission handoff/);
@@ -295,8 +156,20 @@ test("Automatic prohibits parent and worker questions and adapts to finite capac
   assert.match(skill, /start only as many workers as the host\s+can run concurrently/);
   assert.match(skill, /A capacity rejection means wait for running work to finish/);
   assert.match(skill, /Each worker's deadline starts when it\s+actually launches/);
-  assert.match(skill, /Finish directory selection before staging sessions or planning relevance/);
   assert.doesNotMatch(skill, /start\s+all workers immediately|If any required worker cannot be created, stop/);
+});
+
+
+test("retrieval remains undefined while compilation keeps the retained evidence boundary", async () => {
+  const skill = await readFile(skillUrl, "utf8");
   const contract = await readFile(new URL("../references/compilation-contract.md", import.meta.url), "utf8");
-  assert.match(contract, /worker assignments, not 14 simultaneous slots/);
+  assert.match(skill, /Retrieve → Compile → Validate/);
+  assert.match(skill, /Retrieval is not implemented in this branch/);
+  assert.match(skill, /Do not start a new brain build/);
+  assert.match(skill, /## 2\. Compile/);
+  assert.match(skill, /## 3\. Validate/);
+  assert.doesNotMatch(skill, /## 1\. Discover|## 2\. Add owner-supplied originals|normalize every approved source exactly once/);
+  assert.doesNotMatch(contract, /Workers must not rank, score|Partition conversations from the selected directories/);
+  assert.match(contract, /never copy the\s+native session/);
+  assert.match(contract, /Do not reopen upstream originals/);
 });
