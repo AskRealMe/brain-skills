@@ -69,7 +69,8 @@ and stay out of, then offers Automatic and Manual:
   for you to review and submit.
 
 The workflow is Retrieve → Compile → Validate. Retrieval directly finds
-multi-model orchestration sessions and retains normalized evidence. Compile
+sessions relevant to the confirmed brain topic and scope and retains normalized
+evidence. Compile
 writes matching source pages before synthesizing the brain.
 
 Both use the same evidence, writing, and validation workflow. You can interrupt

@@ -166,7 +166,7 @@ test("retrieval leaves search methods open while preserving the retained evidenc
   assert.match(skill, /Retrieve → Compile → Validate/);
   assert.doesNotMatch(skill, /Retrieval is not implemented|new brain builds are unavailable/);
   const retrieval = skill.split("## 1. Retrieve\n\n")[1].split("## 2. Compile")[0].trim();
-  assert.equal(retrieval, "Find all sessions in my local .codex, .claude, and .grok where multiple AI models were orchestrated to accomplish a task. Output a list of the directory paths containing those session files. Find them within five minutes.\n\nThen save the session files identified in that list to `raw/` using the existing canonical normalized JSONL format, and register them in `raw/index.jsonl`.");
+  assert.equal(retrieval, "Find all sessions in my local .codex, .claude, and .grok where work related to the confirmed brain topic and scope was carried out. Output a list of the directory paths containing those session files. Find them within five minutes.\n\nThen save the session files identified in that list to `raw/` using the existing canonical normalized JSONL format, and register them in `raw/index.jsonl`.");
   assert.match(skill, /do not delegate Retrieve to subagents/);
   assert.match(skill, /Write each matching `output\/sources\/<source-id>\.md` page from the retained/);
   assert.match(skill, /## 2\. Compile/);

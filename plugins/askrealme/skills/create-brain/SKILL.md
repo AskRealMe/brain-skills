@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Retrieve multi-model orchestration sessions directly without subagents and retain normalized evidence. Compile writes matching source pages and synthesizes the brain. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Retrieve sessions relevant to the confirmed brain topic and scope directly without subagents and retain normalized evidence. Compile writes matching source pages and synthesizes the brain. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -361,7 +361,7 @@ with `askrealme-normalized-session-v1` records.
 
 ## 1. Retrieve
 
-Find all sessions in my local .codex, .claude, and .grok where multiple AI models were orchestrated to accomplish a task. Output a list of the directory paths containing those session files. Find them within five minutes.
+Find all sessions in my local .codex, .claude, and .grok where work related to the confirmed brain topic and scope was carried out. Output a list of the directory paths containing those session files. Find them within five minutes.
 
 Then save the session files identified in that list to `raw/` using the existing canonical normalized JSONL format, and register them in `raw/index.jsonl`.
 
