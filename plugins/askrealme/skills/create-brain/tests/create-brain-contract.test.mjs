@@ -62,7 +62,7 @@ test("collection retains normalized sessions from the selected work directories"
   assert.match(skill, /Use greedy size-balanced\s+packing/);
   assert.match(skill, /single staged session larger than 1\.5 MiB forms an\s+oversized batch by itself/);
   assert.match(skill, /use it only to balance work, never to decide relevance or exclude a\s+source/);
-  assert.match(skill, /Create one background\s+relevance worker for every batch, each on the session default model/);
+  assert.match(skill, /Create one background\s+relevance worker for every batch, each using the \[low-cost worker mapping\]/);
   assert.match(skill, /starting pending batches as slots become available/);
   assert.match(skill, /Give each worker the confirmed brain scope/);
   assert.match(skill, /Treat a source as relevant only when it is inside the confirmed brain scope/);
@@ -148,23 +148,26 @@ test("every owner question ships with its literal wording", async () => {
   assert.match(skill, /Never narrate what you are about to do/);
 });
 
-test("worker models are pinned, never asked about", async () => {
+test("all workers use provider-specific low-cost models without expensive fallback", async () => {
   const skill = await readFile(skillUrl, "utf8");
-
-  // With no model named at a spawn, a run improvises — and improvising has
-  // included stopping to ask the owner Haiku or Opus, which is not their
-  // decision and not one they have any basis to make.
   assert.match(skill, /\*\*Never ask the owner which model to use\.\*\*/);
-  assert.match(skill, /Set the Agent `model` parameter explicitly at every\s*\n?spawn/);
-
-  // Every spawn point names one, so none of them can fall back to improvising.
-  assert.match(skill, /relevance worker for every batch, each on the session default model/);
-  assert.match(skill, /Start one evidence worker per window as capacity becomes available, each with\s+the Agent `model` parameter set to `haiku`/);
-  assert.match(skill, /one reducer on the session\s*\n?default model/);
-  assert.match(skill, /launch the content inspection as one background\s+Agent worker with the `model` parameter set to `haiku`/);
-
-  // A rejected model must not become a halt.
-  assert.match(skill, /fall back to the session default and carry\s*\n?on/);
+  assert.match(skill, /Set the Agent `model` parameter explicitly at every\s+spawn/);
+  for (const model of ["haiku", "gpt-5.6-luna", "grok-build-0.1", "gemini-2.5-flash-lite", "kimi-for-coding"]) {
+    assert.ok(skill.includes("`" + model + "`"), `missing mapping: ${model}`);
+  }
+  assert.match(skill, /`reasoning_effort: medium` on every spawn/);
+  assert.match(skill, /including retries and nested delegation/);
+  assert.match(skill, /not the provider of the conversation being read/);
+  assert.match(skill, /Cheapest available model that supports the worker's required tools and context/);
+  assert.match(skill, /never `fork_turns: "all"`/);
+  assert.match(skill, /Never fall back to the\s+parent model, session default, or a more expensive model/);
+  assert.match(skill, /failed content\s+inspection blocks submission/);
+  assert.doesNotMatch(skill, /on the session\s+default model|fall back to the session default|parameter set to `haiku`/);
+  assert.match(skill, /directory worker per batch using the \[low-cost worker mapping\]/);
+  assert.match(skill, /relevance worker for every batch, each using the \[low-cost worker mapping\]/);
+  assert.match(skill, /one evidence worker per window as capacity becomes available, each using\s+the \[low-cost worker mapping\]/);
+  assert.match(skill, /one reducer using the same low-cost worker mapping/);
+  assert.match(skill, /content inspection as one background\s+Agent worker using the \[low-cost worker mapping\]/);
 });
 
 test("one progress bar spans the whole build", async () => {

@@ -96,3 +96,11 @@ events. Upstream conversation stores remain unchanged.
 
 Raw material and schema notes exist to build and audit the brain. Only
 `output/` is self-contained, reviewed, and uploaded.
+
+## Worker cost
+
+Every delegated stage uses the explicit provider-specific
+[low-cost worker mapping](SKILL.md#which-model-each-worker-runs-on), including
+retries and nested workers. This keeps a costly parent model from multiplying
+across batches. Unsupported model selections follow the existing stage failure
+rules instead of silently escalating cost. The parent model is unchanged.

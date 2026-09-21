@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before discovery. Automatic selects related projects and continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before discovery. Automatic selects related projects and continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -208,23 +208,51 @@ narrating internal script mechanics.
 
 ## Which model each worker runs on
 
-**Never ask the owner which model to use.** It is not their decision, they have
-no basis to make it, and every question spent on mechanics is one the build
-could have answered itself. Set the Agent `model` parameter explicitly at every
-spawn — leaving it unset is what makes a run improvise, and improvising has
-included stopping to ask.
+**Never ask the owner which model to use.** Set the Agent `model` parameter explicitly at every
+spawn, including retries and nested delegation. Every directory, relevance,
+window, reducer, content-inspection, and other delegated worker uses the same
+low-cost mapping below. The parent keeps its own model.
 
-| Worker | Model | Why |
+Choose by the worker's actual inference provider and execution environment,
+not the provider of the conversation being read. A Codex worker reading Claude
+sessions still uses the Codex mapping. A host connected to another provider
+uses that provider's supported model IDs.
+
+Mapping reference date: 2026-09-21. These are explicit cost-saving defaults,
+not a claim that every provider exposes the same model or effort controls.
+
+| Execution environment / inference provider | Worker model | Reasoning setting |
 | --- | --- | --- |
-| Directory worker | session default | Inspects project descriptions and manifests for Automatic directory selection. |
-| Relevance worker | session default | Judges scope and writes a finished source page. This is the substantive read of the owner's material. |
-| Window worker | `haiku` | Returns structured findings from one slice of an oversized session. No page, no prose. |
-| Window reducer | session default | Makes the single relevant/irrelevant call and writes the one source page. |
-| Content inspection | `haiku` | Scans finished `output/` against a fixed checklist. |
+| Claude Code / Anthropic | `haiku` | No separate effort override. |
+| Codex / OpenAI | `gpt-5.6-luna` | `reasoning_effort: medium` on every spawn. |
+| Grok / xAI | `grok-build-0.1` | Use only reasoning settings supported by the host for this model. |
+| Gemini / Google | `gemini-2.5-flash-lite` | Disable thinking when supported. |
+| Kimi Code | `kimi-for-coding` | `low`; use the configured alias `kimi-code/kimi-for-coding` when required. |
+| Other providers, including standalone Kimi API | Cheapest available model that supports the worker's required tools and context | Lowest supported reasoning setting. |
 
-If a spawn rejects the named model, fall back to the session default and carry
-on. A brain that compiles on the wrong model is a better outcome than a build
-that halts over one.
+For unlisted providers, resolve availability and cost from the host's model
+catalog and official pricing before spawning. Do not guess a model ID or assume
+that a fast model is cheaper. Kimi Code HighSpeed consumes more quota than the
+standard model. Pricing and availability references:
+[xAI](https://docs.x.ai/developers/pricing),
+[Google](https://ai.google.dev/gemini-api/docs/pricing), and
+[Kimi Code](https://www.kimi.com/code/docs/en/kimi-code/models.html).
+
+Pass the selected model through the host's native subagent model control, not
+only in the worker prompt. Do not leave it unset or select `inherit`, `auto`,
+or an agent role that fixes a different model or effort. In Codex, use a spawn
+mode that accepts overrides: `fork_turns: "none"` or a supported bounded history
+count, never `fork_turns: "all"`. Supply the assigned scope, inputs, contracts,
+and build mode explicitly when history is not inherited. In Gemini, configure
+the subagent model itself; changing the parent's `/model` is insufficient.
+Include this policy in worker prompts for any further delegation.
+
+If the mapped model or required effort is rejected or unavailable, report the
+worker launch failure and preserve completed work. Never fall back to the
+parent model, session default, or a more expensive model. Do not ask the owner
+to choose a model. Apply the existing stage failure rules: directory failures
+remain unknown; source failures follow the selected build mode; failed content
+inspection blocks submission. Automatic mode does not waive this model policy.
 
 ## Schedule workers within host capacity
 
@@ -392,8 +420,7 @@ For Automatic:
 1. Group the discovery result by exact `cwd`. Split the distinct directories
    into batches of at most 20 directories. Cover every discovered group; 20 is
    a batch size, not a limit on projects or sessions for the brain.
-2. Start one background directory worker per batch on the session default
-   model, following [host capacity](#schedule-workers-within-host-capacity). Give it the represented person, confirmed included and excluded
+2. Start one background directory worker per batch using the [low-cost worker mapping](#which-model-each-worker-runs-on), following [host capacity](#schedule-workers-within-host-capacity). Give it the represented person, confirmed included and excluded
    scope, and only its assigned directories. Each worker has a hard 30-second
    wall-clock limit from launch. Monitor each deadline and interrupt unfinished
    workers at that deadline, even when other workers are still running.
@@ -493,7 +520,7 @@ Partition the staged files with both limits: at most 20 sources and at most
 packing so one worker can process several small sessions without receiving all
 the largest sessions. A single staged session larger than 1.5 MiB forms an
 oversized batch by itself and is still reviewed. Create one background
-relevance worker for every batch, each on the session default model. Launch
+relevance worker for every batch, each using the [low-cost worker mapping](#which-model-each-worker-runs-on). Launch
 batches according to [host capacity](#schedule-workers-within-host-capacity),
 starting pending batches as slots become available. Do not delegate the complete
 corpus to one worker, merge batches to fit the concurrency limit, or process
@@ -594,12 +621,11 @@ python3 "$SKILL_DIR/scripts/collect_raw.py" split-normalized \
   --max-bytes 1572864
 ```
 
-Start one evidence worker per window as capacity becomes available, each with
-the Agent `model` parameter set to `haiku`. A window worker reads only its window and returns the
+Start one evidence worker per window as capacity becomes available, each using
+the [low-cost worker mapping](#which-model-each-worker-runs-on). A window worker reads only its window and returns the
 source ID, event range, whether the window contains in-scope evidence, and
 concise grounded findings. It must not call `retain` or
-write a source page. After all windows finish, one reducer on the session
-default model receives only their structured findings and makes exactly one
+write a source page. After all windows finish, one reducer using the same low-cost worker mapping receives only their structured findings and makes exactly one
 `relevant` or `irrelevant` decision for the original source ID. If relevant, the reducer retains the original
 unsplit staged JSONL and writes exactly one
 `output/sources/<source-id>.md` page. Window files are temporary processing
@@ -725,7 +751,7 @@ python3 "$SKILL_DIR/scripts/lint_wiki.py" "$BRAIN_ROOT/output"
 
 Fix every reported error and rerun both checks, reporting progress after each.
 Do not waive failures. Then launch the content inspection as one background
-Agent worker with the `model` parameter set to `haiku` — the third check — and
+Agent worker using the [low-cost worker mapping](#which-model-each-worker-runs-on) — the third check — and
 inspect for:
 
 - conflicting claims;

@@ -2,6 +2,9 @@
 
 This is the canonical compiler shared by `create-brain` and `ingest-brain`.
 Both modes apply the same evidence, writing, page, and validation standards.
+Workers spawned during Create Brain follow its
+[low-cost worker mapping](../SKILL.md#which-model-each-worker-runs-on), including
+any delegated synthesis or validation.
 They differ only in the indexed source set and how broadly they may rewrite an
 existing output.
 
