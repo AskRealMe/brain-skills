@@ -14,10 +14,10 @@ identity or scope. The workspace folder name is derived from the brain name.
 
 ## Workflow
 
-The workflow is Retrieve → Compile → Validate. Retrieval leaves search methods
-to the agent while requiring grounded evidence and matching retained records
-and source pages. This lets the agent follow useful leads without reviewing
-every local session. The executable contract lives in
+The workflow is Retrieve → Compile → Validate. The parent directly searches
+local sessions for work accomplished through multi-model orchestration and
+retains the sessions in raw. Compile writes source pages from retained evidence
+before synthesis. The executable contract lives in
 [SKILL.md](SKILL.md#1-retrieve).
 
 ## Automatic includes submission

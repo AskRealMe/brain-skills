@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Retrieve relevant sessions using an adaptive search, retain normalized evidence, and write matching source pages. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Retrieve multi-model orchestration sessions directly without subagents and retain normalized evidence. Compile writes matching source pages and synthesizes the brain. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -209,6 +209,8 @@ narrating internal script mechanics.
 
 ## Which model each worker runs on
 
+The parent performs Retrieve directly; do not delegate Retrieve to subagents.
+
 **Never ask the owner which model to use.** Set the Agent `model` parameter explicitly at every
 spawn, including retries and nested delegation. Every content-inspection and other delegated worker uses the same
 low-cost mapping below. The parent keeps its own model.
@@ -359,23 +361,16 @@ with `askrealme-normalized-session-v1` records.
 
 ## 1. Retrieve
 
-Find local AI sessions that provide useful evidence for the confirmed brain topic and scope. Use your judgment to search, inspect, and follow leads. Choose the tools and approach that fit the records you find; you do not need to inventory or review every session.
+Find all sessions in my local .codex, .claude, and .grok where multiple AI models were orchestrated to accomplish a task. Output a list of the directory paths containing those session files. Find them within five minutes.
 
-Spend up to five minutes searching and checking candidates. Then finish retaining the evidence you confirmed and writing its source pages.
-
-Look for material that helps this brain answer useful questions: work performed, decisions, explanations, comparisons, failures, corrections, and observed results. A successful outcome is not required. Distinguish the owner's contributions from AI suggestions and work performed by others.
-
-Useful leads may include tool names, actions, project paths, filenames, outputs, and session relationships. Follow whichever leads help. Mentions in settings, skill catalogs, or summaries can point you toward original records, but do not establish that the work happened in that session.
-
-As you confirm relevant sessions, save them to `raw/` as canonical normalized JSONL and register their provenance and hashes in `raw/index.jsonl`. Never copy provider-native session files into `raw/`. Use the existing normalization and retention tools.
-
-After retaining a session, write its matching `output/sources/<source-id>.md` page from the same normalized evidence. Follow the output and writing contracts. Preserve useful context, decisions, outcomes, and uncertainty without reproducing the transcript. Do not reopen the provider original to write the source page.
-
-Keep unverified candidates out of the retained evidence. Report what you found, why it matters to the brain, the evidence locations, and any meaningful gaps or unverified leads. Do not claim exhaustive coverage.
-
-Before continuing to Compile, verify that retained records are indexed and each retained session has its matching source page. If no relevant evidence is available, report that result instead of inventing material.
+Then save the session files identified in that list to `raw/` using the existing canonical normalized JSONL format, and register them in `raw/index.jsonl`.
 
 ## 2. Compile
+
+Write each matching `output/sources/<source-id>.md` page from the retained
+normalized evidence, following the output and writing contracts. Do not reopen
+provider originals for source writing. Verify the raw index and matching source
+pages before synthesis.
 
 Apply the [compilation contract](references/compilation-contract.md) and the
 [output contract](references/output-contract.md). For each retained source ID,

@@ -68,9 +68,9 @@ and stay out of, then offers Automatic and Manual:
 - **Manual** offers optional document choices and leaves the result locally
   for you to review and submit.
 
-The workflow is Retrieve → Compile → Validate. Retrieval follows useful leads
-to find relevant sessions, retains normalized evidence, and writes matching
-source pages. It does not require reviewing every local session.
+The workflow is Retrieve → Compile → Validate. Retrieval directly finds
+multi-model orchestration sessions and retains normalized evidence. Compile
+writes matching source pages before synthesizing the brain.
 
 Both use the same evidence, writing, and validation workflow. You can interrupt
 to narrow the projects or stop submission. The local folder name is derived
