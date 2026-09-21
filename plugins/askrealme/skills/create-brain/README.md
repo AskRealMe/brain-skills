@@ -14,9 +14,11 @@ identity or scope. The workspace folder name is derived from the brain name.
 
 ## Workflow
 
-The workflow is Retrieve → Compile → Validate. Retrieve is not implemented in
-this branch, so new brain builds are unavailable until its contract is defined.
-The executable status lives in [SKILL.md](SKILL.md#1-retrieve).
+The workflow is Retrieve → Compile → Validate. Retrieval leaves search methods
+to the agent while requiring grounded evidence and matching retained records
+and source pages. This lets the agent follow useful leads without reviewing
+every local session. The executable contract lives in
+[SKILL.md](SKILL.md#1-retrieve).
 
 ## Automatic includes submission
 

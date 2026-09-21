@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Retrieve relevant sessions using an adaptive search, retain normalized evidence, and write matching source pages. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. Every subagent uses an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -12,7 +12,6 @@ answer must pair a reproducible practice with the real incident that produced
 it.
 
 The workflow has three stages: Retrieve → Compile → Validate.
-Retrieval is not implemented in this branch; new brain builds are unavailable.
 
 Read [the output contract](references/output-contract.md) and
 [the writing contract](references/writing-contract.md) before compiling. They
@@ -291,7 +290,8 @@ For compilation and validation, report progress at these points:
 | Completion report | `--stage done` |
 
 The command owns the percentage. Never compute, round, or adjust it yourself.
-Only the completion report may show 100%. Retrieval progress is not defined.
+Only the completion report may show 100%. During retrieval, report findings
+and remaining uncertainty in prose without inventing a completion percentage.
 
 ## Workspace
 
@@ -359,9 +359,21 @@ with `askrealme-normalized-session-v1` records.
 
 ## 1. Retrieve
 
-Retrieval is not implemented in this branch. Do not start a new brain build
-until this stage is defined. The Compile and Validate contracts below remain
-available for retained evidence.
+Find local AI sessions that provide useful evidence for the confirmed brain topic and scope. Use your judgment to search, inspect, and follow leads. Choose the tools and approach that fit the records you find; you do not need to inventory or review every session.
+
+Spend up to five minutes searching and checking candidates. Then finish retaining the evidence you confirmed and writing its source pages.
+
+Look for material that helps this brain answer useful questions: work performed, decisions, explanations, comparisons, failures, corrections, and observed results. A successful outcome is not required. Distinguish the owner's contributions from AI suggestions and work performed by others.
+
+Useful leads may include tool names, actions, project paths, filenames, outputs, and session relationships. Follow whichever leads help. Mentions in settings, skill catalogs, or summaries can point you toward original records, but do not establish that the work happened in that session.
+
+As you confirm relevant sessions, save them to `raw/` as canonical normalized JSONL and register their provenance and hashes in `raw/index.jsonl`. Never copy provider-native session files into `raw/`. Use the existing normalization and retention tools.
+
+After retaining a session, write its matching `output/sources/<source-id>.md` page from the same normalized evidence. Follow the output and writing contracts. Preserve useful context, decisions, outcomes, and uncertainty without reproducing the transcript. Do not reopen the provider original to write the source page.
+
+Keep unverified candidates out of the retained evidence. Report what you found, why it matters to the brain, the evidence locations, and any meaningful gaps or unverified leads. Do not claim exhaustive coverage.
+
+Before continuing to Compile, verify that retained records are indexed and each retained session has its matching source page. If no relevant evidence is available, report that result instead of inventing material.
 
 ## 2. Compile
 

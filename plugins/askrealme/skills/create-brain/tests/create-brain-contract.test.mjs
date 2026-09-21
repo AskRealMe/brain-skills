@@ -160,12 +160,19 @@ test("Automatic prohibits parent and worker questions and adapts to finite capac
 });
 
 
-test("retrieval remains undefined while compilation keeps the retained evidence boundary", async () => {
+test("retrieval leaves search methods open while preserving the retained evidence boundary", async () => {
   const skill = await readFile(skillUrl, "utf8");
   const contract = await readFile(new URL("../references/compilation-contract.md", import.meta.url), "utf8");
   assert.match(skill, /Retrieve → Compile → Validate/);
-  assert.match(skill, /Retrieval is not implemented in this branch/);
-  assert.match(skill, /Do not start a new brain build/);
+  assert.doesNotMatch(skill, /Retrieval is not implemented|new brain builds are unavailable/);
+  assert.match(skill, /Use your judgment to search, inspect, and follow leads/);
+  assert.match(skill, /you do not need to inventory or review every session/);
+  assert.match(skill, /Spend up to five minutes searching and checking candidates/);
+  assert.match(skill, /Then finish retaining the evidence you confirmed and writing its source pages/);
+  assert.match(skill, /Keep unverified candidates out of the retained evidence/);
+  assert.match(skill, /register their provenance and hashes in `raw\/index\.jsonl`/);
+  assert.match(skill, /Do not reopen the provider original to write the source page/);
+  assert.match(skill, /each retained session has its matching source page/);
   assert.match(skill, /## 2\. Compile/);
   assert.match(skill, /## 3\. Validate/);
   assert.doesNotMatch(skill, /## 1\. Discover|## 2\. Add owner-supplied originals|normalize every approved source exactly once/);

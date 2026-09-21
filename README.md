@@ -68,8 +68,9 @@ and stay out of, then offers Automatic and Manual:
 - **Manual** offers optional document choices and leaves the result locally
   for you to review and submit.
 
-The workflow is Retrieve → Compile → Validate. Retrieve is not implemented in
-this branch; new brain builds are unavailable until its contract is defined.
+The workflow is Retrieve → Compile → Validate. Retrieval follows useful leads
+to find relevant sessions, retains normalized evidence, and writes matching
+source pages. It does not require reviewing every local session.
 
 Both use the same evidence, writing, and validation workflow. You can interrupt
 to narrow the projects or stop submission. The local folder name is derived

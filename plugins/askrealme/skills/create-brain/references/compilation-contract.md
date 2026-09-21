@@ -20,8 +20,7 @@ canonical normalized JSONL and renders those same events to the worker without
 exposing native bytes.
 
 - **Full mode (`create-brain`)**: compile the retained source set prepared by
-  [the creation workflow](../SKILL.md#1-retrieve). Its retrieval contract must
-  be defined before starting a new build.
+  [the creation workflow](../SKILL.md#1-retrieve).
 - **Delta mode (`ingest-brain`)**: use only the exact new source IDs supplied or
   approved for this invocation. Do not add older records because they look
   related, were modified recently, or have no output page.
