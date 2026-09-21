@@ -20,6 +20,10 @@ instructions. The parent retains the returned sessions in raw. Compile writes so
 before synthesis. The executable contract lives in
 [SKILL.md](SKILL.md#1-retrieve).
 
+The retrieval request describes relevant experiences broadly so a polished brain
+title does not become a checklist that every session must satisfy. Examples
+clarify the subject without defining the complete set of eligible experiences.
+
 ## Automatic includes submission
 
 The build-mode choice describes submission before the owner selects it.

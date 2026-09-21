@@ -1,6 +1,6 @@
 ---
 name: create-brain
-description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Use a search-only subagent without inherited history to retrieve sessions for the confirmed topic and scope; the parent retains normalized evidence. Compile writes matching source pages and synthesizes the brain. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. The search-only subagent uses the parent's current model and reasoning setting; all other subagents use an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
+description: Build a first-person, evidence-grounded AskRealMe brain within an owner-confirmed scope from normalized local AI sessions and owner-supplied project documents. Use when the user wants to turn their work history, decisions, or lived experience into a portable brain or refresh an existing AskRealMe brain. Require the dashboard brain name and brain-id, then confirm the represented person, scope, and build mode before retrieval. Restate the confirmed topic as a broad experience search and delegate it to a search-only subagent without inherited history; the parent retains normalized evidence. Compile writes matching source pages and synthesizes the brain. Automatic continues without follow-up questions through validation to browser-authorized submission; Manual keeps the local creation workflow. The search-only subagent uses the parent's current model and reasoning setting; all other subagents use an explicit provider-specific low-cost model. The shareable result is the output directory; normalized raw evidence stays private.
 ---
 
 # Create Brain
@@ -372,11 +372,19 @@ with `askrealme-normalized-session-v1` records.
 
 Start a search-only subagent using the parent's current model and reasoning
 setting, with no inherited conversation history.
-Replace {topic and scope} with the owner's confirmed topic and scope,
-and send only this prompt:
+Before delegating the search, restate the brain topic as a short,
+natural request to find a broad range of relevant experiences.
+Do not turn the title's qualifiers or individual aspects into
+requirements that every session must satisfy. You may give examples
+of relevant experiences, but do not limit the search to those examples.
+Preserve the owner's explicit scope exclusions.
+
+Replace {relevant experiences} below with this broad description, optionally
+including examples, and send only the resulting search prompt. Keep these
+restatement instructions in the parent; do not pass them to the subagent:
 
 > Find all sessions in my local .codex, .claude, and .grok where work
-> related to {topic and scope} was carried out. Output a list of the
+> related to {relevant experiences} was carried out. Output a list of the
 > directory paths containing those session files, together with the
 > exact matching session file paths. Find them within five minutes.
 >
