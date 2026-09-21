@@ -126,7 +126,7 @@ paraphrase of the rules above is what produces "Before I discover any source, I
 need to know who this brain represents", which reads as the skill narrating its
 own control flow at someone who just wants to make a brain.
 
-Use a question tool to ask one question at a time. Wait for the user's answer
+Ask one question at a time using the question tool, ensure the question appears in the final response rather than only in collapsible progress messages, and wait for the user's answer
 before asking the next question. If no question tool is available, follow the
 same approach in plain text.
 
