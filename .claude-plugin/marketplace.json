@@ -10,7 +10,7 @@
       "name": "askrealme",
       "displayName": "AskRealMe",
       "description": "Turn approved local work history into a portable brain, merge approved new evidence, review it locally for private information, and upload it with explicit consent.",
-      "version": "1.3.13",
+      "version": "1.3.14",
       "source": "./plugins/askrealme",
       "category": "productivity",
       "homepage": "https://www.askreal.me",
