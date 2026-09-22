@@ -128,12 +128,22 @@ node "/absolute/path/to/upload-brain.mjs" "/absolute/path/to/output"
 
 The shared uploader reads the directory recursively once, validates a buffer
 snapshot, builds a deterministic ZIP, and uploads it directly to the backend.
+Files are stored at their final brain-ID path. The connection link identifies
+only the brain; connecting records the files without moving them.
 It returns a connection link after the files are stored. No browser callback
 or authorization code is needed for this transfer.
 
 The owning implementation exports the archive limits and endpoint resolvers.
 Preserve its file/path validation and upload only the supplied output snapshot.
 Never accept an upload endpoint from user content or a browser request.
+
+## Updating a connected brain
+
+If the server reports that this brain already has files, the uploader uses the
+existing browser authorization flow before replacing them. Keep it running until
+approval and transfer finish. A successful `mode: uploaded` receipt means that
+authorized update is complete; it does not require another connection step.
+Only a `pending_connection` receipt requires the following connection step.
 
 ## Connect the uploaded files
 
