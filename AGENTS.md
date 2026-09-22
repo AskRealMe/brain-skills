@@ -3,7 +3,7 @@
 - Reference date: 2026-09-19.
 - Product: turn owner-approved local material into a transferable AI brain,
   validate it, and upload it only after explicit consent. An explicit Automatic
-  build selection includes submission; browser authorization is still required.
+  build selection includes submission; browser approval is required after upload to connect the stored files.
 - Public skills: `create-brain`, `ingest-brain`, `review-brain`, and
   `submit-brain`.
 - Out of scope: the AskRealMe backend and private conversation prompts.
@@ -107,10 +107,11 @@ requires a new review before upload.
   explicit save actions after checking the original SHA-256.
 - Backups and review records stay outside the transferable directory.
 - Opening or saving never uploads. Only an explicit upload action or Automatic
-  build selection starts an upload authorization request; actual upload still
-  requires browser authorization.
-- Existing-brain updates use a short-lived one-use authorization. Never expose
-  it in URLs, files, logs, environment variables, or UI responses.
+  build selection starts transfer. Browser approval subsequently connects the
+  saved files; opening or saving the review workspace alone does not transfer.
+- New submissions return a connection link for the existing brain. Never send
+  web login credentials to the local tool. Keep the older one-use-code upload
+  path compatible with installed clients.
 
 ## Documentation and copy
 

@@ -12,7 +12,7 @@ The AskRealMe plugin provides four product skills:
 3. `review-brain` opens a loopback privacy review workspace where you can
    inspect and edit every file before publishing it.
 4. `submit-brain` uploads the validated brain to AskRealMe after an explicit
-   upload request or an Automatic build selection, using browser authorization.
+   upload request or an Automatic build selection, then connecting the uploaded files in the browser.
 
 ## Install
 
@@ -136,7 +136,7 @@ with the same brain-id. Both refresh paths keep the brain-id recorded in root
   contextual privacy pass. That runtime may use its configured model provider.
 - Opening the review workspace or saving edits never uploads a brain.
 - An upload starts only after an explicit upload request or Automatic selection
-  and browser authorization. The review workspace AI privacy pass is separate
+  and browser approval to connect uploaded files. The review workspace AI privacy pass is separate
   from creation validation and upload.
 - Updates to an existing brain require a short-lived, one-use authorization
   tied to that brain.

@@ -85,6 +85,9 @@ export function parseBrainMetadata(text) {
   if (uuid !== undefined && !UUID_RE.test(uuid)) {
     throw new Error("BRAIN.md frontmatter contains an invalid UUID.");
   }
+  if (duplicates.has("brain_id")) throw new Error("BRAIN.md contains more than one brain_id.");
+  const brainId = parseScalar(fields.get("brain_id"));
+  if (brainId !== undefined && !/^c[a-z0-9]{20,30}$/u.test(brainId)) throw new Error("BRAIN.md contains an invalid brain_id.");
   const heading = body.match(/^#\s+(.+)$/mu)?.[1]?.trim();
   const title = parseScalar(fields.get("title")) || heading;
   if (!title) throw new Error("Could not read a title from BRAIN.md.");
@@ -97,6 +100,7 @@ export function parseBrainMetadata(text) {
     title,
     description: parseScalar(fields.get("description")) || firstParagraph || "",
     uuid: uuid?.toLowerCase() ?? null,
+    ...(brainId ? { brainId } : {}),
   };
 }
 
@@ -382,6 +386,7 @@ function validateProposedBrain(session, outputs) {
   for (const [name, content] of outputs) contents.set(name, content);
   const index = contents.get("BRAIN.md");
   const metadata = parseBrainMetadata(index);
+  if (metadata.brainId !== session.metadata.brainId) throw new Error("The review workspace cannot change the BRAIN.md brain_id.");
   if (metadata.uuid !== session.metadata.uuid) {
     throw new Error("The review workspace cannot add, remove, or replace the BRAIN.md UUID.");
   }

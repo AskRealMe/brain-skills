@@ -179,28 +179,19 @@ boundary between the page and the selected local CLI.
 
 ## Upload boundary
 
-- The browser calls only loopback `/api/upload` and `/api/upload-auth/*`
-  endpoints. It may open the AskRealMe authorization page in a new window.
-- Every local mutation request must have the current loopback Origin, JSON
-  content type, and the fresh capability token created for that page.
-- Use the shared `plugins/askrealme/lib/upload-brain.mjs` uploader to send one
-  ZIP directly to the endpoint returned by its owning resolver functions.
-- Require the client-created UUID already stored in root `BRAIN.md`. Look up
-  that UUID before upload: create a draft when it is missing or expired, reopen
-  its confirmation URL when it is pending, and authorize an update when it is
-  claimed.
-- A claimed UUID opens the production AskRealMe authorization page. Bind a
-  cryptographically random 256-bit state to the review session and brain UUID,
-  keep it in memory, and expire it after five minutes.
-- Accept an authorization callback only from the exact production AskRealMe
-  Origin with the expected JSON and CORS/PNA preflight behavior.
-- Accept exactly `state` and a 43-character `uploadCode`. Reject a `brainId`,
-  Firebase ID token, or any additional field.
-- Expose the upload code only in the callback request body and the backend PUT
-  authorization header. Never put it in a URL, file, storage, log, environment
-  variable, browser response, or UI. Remove it from memory as soon as one update
-  request consumes it.
-- Require the update response mode and UUID to match the current brain exactly.
+- The browser calls the loopback `/api/upload` endpoint after the owner's
+  explicit upload action. Saving or opening the workspace never uploads.
+- Every local mutation requires the current loopback Origin, JSON content type,
+  and the capability token created for that page.
+- Require the dashboard-created `brain_id` in root `BRAIN.md`. Preserve it while
+  editing; never change the target brain or generate a replacement identifier.
+- Use the shared uploader to transfer the validated ZIP directly to the backend
+  before browser approval. Validate its `pending_connection` receipt against
+  the exact brain ID and file count, then show its connection link.
+- The owner signs in and connects files on the website. No upload authorization
+  callback, popup, or login credential is needed by the local review server.
+- Show "Files uploaded" and the connection link, not "Brain updated". The local
+  review tool can close before the owner connects the files.
 - Do not accept an upload host from a browser request. Allow the shared
   development-only API override only through its existing environment contract.
 - Snapshot every file into buffers immediately before upload and compare the
@@ -223,6 +214,5 @@ The suite covers safe Markdown rendering, recursive paths, traversal and
 symbolic-link rejection, explicit runtime mapping, chat isolation, grounded AI
 privacy JSON, its three-result cap and one-call boundary, intermediate file
 changes, single and batch saves, rollback, one-file HTML packaging, backup
-placement, first upload, pending ownership confirmation, existing-brain authorization, strict
-callback fields, credential rejection, code secrecy and consumption, timeouts,
-retry, duplicate upload prevention, and pre-network snapshot checks.
+placement, upload-before-connection receipts, local request authentication,
+timeouts, retry, duplicate upload prevention, and pre-network snapshot checks.

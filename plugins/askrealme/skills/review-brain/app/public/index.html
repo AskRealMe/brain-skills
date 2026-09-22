@@ -593,9 +593,9 @@
     <dialog id="upload-dialog" class="upload-dialog" aria-labelledby="upload-result-title">
       <div class="upload-result">
         <h2 id="upload-result-title">Upload complete</h2>
-        <p id="upload-result-summary">Confirm ownership to connect this brain to your account. Use the link before it expires.</p>
+        <p id="upload-result-summary">Your files are uploaded. Open the link to connect them to your brain.</p>
         <dl class="upload-facts">
-          <dt>UUID</dt><dd id="upload-uuid">—</dd>
+          <dt>Brain ID</dt><dd id="upload-uuid">—</dd>
           <dt>Files</dt><dd id="upload-file-count">—</dd>
           <dt id="upload-expires-label">Expires</dt><dd id="upload-expires-at">—</dd>
         </dl>
@@ -1643,126 +1643,39 @@
       }
 
       function showUploadResult(upload) {
-        const created = upload.mode === "created";
-        $("#upload-result-title").textContent = created ? "New brain uploaded" : "Brain updated";
-        $("#upload-result-summary").textContent = created
-          ? "Confirm ownership to connect this brain to your account. Use the link before it expires."
-          : "The one-time brain ZIP update was authorized, and the brain with the same UUID was updated.";
-        $("#upload-uuid").textContent = upload.uuid;
+        $("#upload-result-title").textContent = "Files uploaded";
+        $("#upload-result-summary").textContent = "Connect these files to your brain on AskReal.me. You can close this local tool.";
+        $("#upload-uuid").textContent = upload.brainId;
         $("#upload-file-count").textContent = upload.fileCount.toLocaleString();
-        $("#upload-expires-label").classList.toggle("hidden", !created);
-        $("#upload-expires-at").classList.toggle("hidden", !created);
-        $("#upload-signin").classList.toggle("hidden", !created);
-        $("#copy-upload-link").classList.toggle("hidden", !created);
-        if (created) {
-          $("#upload-expires-at").textContent = new Intl.DateTimeFormat("en-US", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          }).format(new Date(upload.expiresAt));
-          $("#upload-signin").href = upload.confirmUrl;
-        }
-        const warning = $("#upload-local-warning");
-        warning.textContent = "";
-        warning.classList.add("hidden");
+        $("#upload-expires-label").classList.add("hidden");
+        $("#upload-expires-at").classList.add("hidden");
+        $("#upload-signin").classList.remove("hidden");
+        $("#copy-upload-link").classList.remove("hidden");
+        $("#upload-signin").href = upload.connectUrl;
+        $("#upload-signin").textContent = "Connect files";
+        $("#upload-local-warning").classList.add("hidden");
         $("#upload-dialog").showModal();
-      }
-
-      const wait = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-
-      async function authorizeExistingBrain(approvalWindow) {
-        setUploadStatus(`Checking brain ${state.brainId}…`);
-        const auth = await api("/api/upload-auth/start", {
-          method: "POST",
-          body: JSON.stringify({ brainId: state.brainId }),
-        });
-        if (auth.mode === "create") {
-          approvalWindow.close();
-          setUploadStatus("Sending the reviewed ZIP…");
-          return { mode: "create" };
-        }
-        if (auth.mode === "pending") {
-          approvalWindow.location.replace(auth.confirmUrl);
-          setUploadStatus("This brain is already uploaded. Finish ownership confirmation in the opened window.");
-          return { mode: "pending" };
-        }
-        approvalWindow.location.replace(auth.authorizeUrl);
-        setUploadStatus(`In the authorization window, allow a one-time brain ZIP update for UUID ${state.brainId}.`);
-        const expiresAt = Date.parse(auth.expiresAt);
-        while (Date.now() < expiresAt) {
-          await wait(700);
-          const result = await api("/api/upload-auth/status", {
-            method: "POST",
-            body: JSON.stringify({ state: auth.state, brainId: state.brainId }),
-          });
-          if (result.status === "authorized") {
-            approvalWindow.close();
-            setUploadStatus("Authorization confirmed. Sending the reviewed ZIP…");
-            return { mode: "update", authState: auth.state };
-          }
-          if (result.status === "failed") {
-            throw new Error(result.error || "Could not complete the authorization callback. Try again.");
-          }
-          // A cross-origin authorization page may sever its opener through
-          // Cross-Origin-Opener-Policy, which makes WindowProxy.closed look
-          // true even while the approval page is still open. The local status
-          // endpoint is the source of truth; wait for authorization or expiry.
-        }
-        approvalWindow.close();
-        throw new Error("Upload authorization did not finish within five minutes. Try again.");
       }
 
       async function uploadReviewedBrain() {
         if (saving || uploading) return;
-        const confirmation = `Target brain UUID: ${state.brainId}\nOnly privacy-reviewed output/ files will be sent to AskReal.me. raw/, unrelated/, schema.md, and README.md will not be sent. Continue?`;
-        const confirmed = window.confirm(confirmation);
-        if (!confirmed) return;
-        const approvalWindow = window.open("about:blank", "askreal-upload-authorize", "popup,width=560,height=720");
-        if (!approvalWindow) {
-          setUploadStatus("Could not open the authorization window. Allow pop-ups, then try again.", true);
-          toast("Allow pop-ups, then try again.", true);
-          return;
-        }
+        const confirmation = `Upload the reviewed output/ files for brain ${state.brainId}? Files will be sent now. You will connect them on AskReal.me afterward. Private source files stay local.`;
+        if (!window.confirm(confirmation)) return;
         uploading = true;
         updateControls();
         try {
-          const pendingNames = dirtyNames();
-          if (pendingNames.length) {
-            setUploadStatus(`Saving ${pendingNames.length} unsaved files first…`);
-            const savedState = await api("/api/save-all", {
-              method: "POST",
-              body: JSON.stringify({
-                files: pendingNames.map((name) => ({ name, content: drafts.get(name) })),
-              }),
-            });
-            mergeServerState(savedState, savedState.saved.changed);
-            toast(`Saved ${savedState.saved.changed.length} files. Continuing upload authorization.`);
-          }
-          const authorization = await authorizeExistingBrain(approvalWindow);
-          if (authorization.mode === "pending") {
-            toast("This brain is waiting for ownership confirmation.");
-            return;
-          }
+          setUploadStatus("Uploading reviewed files…");
           const names = dirtyNames();
           const next = await api("/api/upload", {
             method: "POST",
-            body: JSON.stringify({
-              files: names.map((name) => ({ name, content: drafts.get(name) })),
-              ...(authorization.authState ? { authState: authorization.authState } : {}),
-            }),
+            body: JSON.stringify({ files: names.map((name) => ({ name, content: drafts.get(name) })) }),
           });
           const changed = [...new Set([...next.saved.changed, ...next.sessionSync.changed])];
           mergeServerState(next, changed);
-          if (next.upload.mode === "updated") {
-            window.location.assign(`https://www.askreal.me/brains/${encodeURIComponent(next.upload.uuid)}`);
-            return;
-          }
           showUploadResult(next.upload);
           setUploadStatus("");
-          toast(next.upload.mode === "created"
-            ? `Uploaded ${next.upload.fileCount} files. Confirm ownership to finish.`
-            : `Updated the existing brain with ${next.upload.fileCount} files.`);
+          toast(`Uploaded ${next.upload.fileCount} files. Open the link to connect them.`);
         } catch (error) {
-          if (approvalWindow && !approvalWindow.closed) approvalWindow.close();
           if (error.payload?.saved) mergeServerState(error.payload, error.payload.saved.changed);
           setUploadStatus(error.message, true);
           toast(error.message, true);

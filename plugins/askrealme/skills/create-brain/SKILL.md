@@ -110,8 +110,8 @@ using the existing bounded retries. If no valid recovery remains, report the
 specific failure and preserve completed work without turning it into a question.
 Do not fabricate evidence, skip failed validation, expand the owner's scope,
 create accounts, or claim upload success to force completion. Browser sign-in
-and authorization still belong to the owner; wait for the existing uploader's
-callback without adding a conversational confirmation. Honour owner corrections
+and connection approval still belong to the owner; return the connection link
+without adding a conversational confirmation. Honour owner corrections
 or cancellation immediately. An instruction to stop
 or build locally cancels the automatic submission handoff.
 
@@ -174,7 +174,7 @@ question: Choose how to build your brain:
 ```
 
 ```text
-Automatic (Recommended) — Find related projects, build, check, and upload this brain. Sign in when the browser opens.
+Automatic (Recommended) — Find related projects, build, check, and upload this brain. Files upload first; connect them using the returned link.
 Manual                  — Build locally with optional document choices. Review and submit when you choose.
 ```
 
@@ -469,13 +469,13 @@ the absolute `$BRAIN_ROOT/output/` path and the original brain-id. This explicit
 path bypasses its brain picker. Use its existing shared uploader and production
 defaults; do not implement another upload or authentication path.
 
-Keep the uploader running while the owner signs in and authorizes in the
-browser. Report that authorization is pending, not that upload succeeded.
-Never create an account, accept credentials in chat, or bypass browser
-authorization. If the browser cannot open, surface the uploader's continuation
-URL. If authorization expires, is cancelled, or upload fails, preserve the local
-brain and report the error and how to retry with `submit-brain`. Do not loop
-retries or report success without a matching `uploaded` response.
+The uploader transfers files before browser approval and returns a connection
+link. Report that files are uploaded and awaiting connection; the owner can
+close the local tool and connect them on the website later. Never create an
+account, accept credentials in chat, or approve connection for the owner. If
+upload fails, preserve the local brain and report how to retry with
+`submit-brain`. Do not report success without a matching `pending_connection`
+receipt, and do not call that receipt a completed brain update.
 
 ## Completion report
 
@@ -483,7 +483,7 @@ Report:
 
 - the absolute path to `output/`;
 - for Automatic, the actual submission result: uploaded with its returned file
-  count, awaiting browser authorization, or failed with the retry action;
+  count and connection link, or failed with the retry action;
 - the page count for each type and the retained source count;
 - both validation commands and whether they passed;
 - what the content review verified and what remains unknown;
