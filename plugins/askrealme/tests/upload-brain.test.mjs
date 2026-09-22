@@ -715,6 +715,8 @@ test("CLI finishes after an unauthenticated upload and returns a link without a 
     const chunks = []; for await (const chunk of request) chunks.push(chunk);
     assert.ok(Buffer.concat(chunks).includes(Buffer.from('brain.zip')));
     const value = await createdResponse(1).json();
+    delete value.uploadId;
+    value.connectPath = `/upload-connect?brainId=${BRAIN_ID}`;
     value.connectUrl = `http://127.0.0.1:${server.address().port}${value.connectPath}`;
     response.writeHead(201, { 'Content-Type': 'application/json' }).end(JSON.stringify(value));
   });
@@ -734,4 +736,37 @@ test("CLI finishes after an unauthenticated upload and returns a link without a 
     assert.equal(result.brainId, BRAIN_ID); assert.ok(result.connectUrl.startsWith(base + '/upload-connect?'));
     assert.doesNotMatch(output + errors, /callback|Authorize this upload/);
   } finally { await new Promise((resolve) => server.close(resolve)); }
+});
+
+test("direct-upload receipts contain only the brain ID", async () => {
+  const directory = tempDir('direct-receipt');
+  write(directory, 'BRAIN.md', brainContent());
+  const prepared = await prepareBrainUpload(directory);
+  const connectPath = `/upload-connect?brainId=${BRAIN_ID}`;
+  const result = await stagePreparedBrain({ prepared, environment: {}, fetchImpl: async () =>
+    Response.json({ success: true, mode: 'pending_connection', brainId: BRAIN_ID,
+      fileCount: 1, connectPath, connectUrl: `https://www.askreal.me${connectPath}` }, { status: 201 }) });
+  assert.equal(result.uploadId, undefined);
+  assert.equal(result.connectPath, connectPath);
+});
+
+test("connected brains use the existing authorized PUT without changing the prepared snapshot", async () => {
+  const directory = tempDir('existing-update');
+  write(directory, 'BRAIN.md', brainContent());
+  const prepared = await prepareBrainUpload(directory);
+  let calls = 0, approvals = 0;
+  const result = await stagePreparedBrain({ prepared, environment: {},
+    authorize: async ({ brainId }) => { approvals++; assert.equal(brainId, BRAIN_ID); return 'a'.repeat(43); },
+    fetchImpl: async (url, init) => {
+      calls++;
+      if (calls === 1) {
+        assert.equal(init.method, 'POST'); assert.equal(init.headers, undefined);
+        return Response.json({ code: 'BRAIN_ALREADY_CONNECTED' }, { status: 409 });
+      }
+      assert.equal(init.method, 'PUT'); assert.ok(url.endsWith(`/brains/${BRAIN_ID}/upload`));
+      assert.equal(init.headers.Authorization, `UploadCode ${'a'.repeat(43)}`);
+      return updatedResponse(1);
+    },
+  });
+  assert.equal(result.mode, 'uploaded'); assert.equal(calls, 2); assert.equal(approvals, 1);
 });

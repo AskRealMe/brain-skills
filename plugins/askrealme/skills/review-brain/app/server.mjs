@@ -21,6 +21,7 @@ import {
   prepareBrainUpload,
   stagePreparedBrain,
   pendingUploadResult,
+  PUBLIC_SITE_URL,
 } from "../../../lib/upload-brain.mjs";
 
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -1034,7 +1035,11 @@ export function createReviewServer({
           try {
             const prepared = await prepareUpload(session.brain, { expectedFiles: session.files });
             const result = await uploadRunner({ prepared });
-            upload = pendingUploadResult({ ...result, success: true }, session.metadata.brainId, prepared.fileCount);
+            if (result.mode === 'uploaded') {
+              if (result.brainId !== session.metadata.brainId || result.fileCount !== prepared.fileCount) throw new Error('The upload response does not match this brain.');
+              upload = { mode: 'uploaded', brainId: result.brainId, fileCount: result.fileCount,
+                connectUrl: `${PUBLIC_SITE_URL}/brains/${encodeURIComponent(result.brainId)}` };
+            } else upload = pendingUploadResult({ ...result, success: true }, session.metadata.brainId, prepared.fileCount);
           } catch (error) {
             sendJson(response, error.status || 502, {
               ...publicState(session, runtime, privacyReview), saved, error: error.message || String(error),

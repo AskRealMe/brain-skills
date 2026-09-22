@@ -216,3 +216,8 @@ privacy JSON, its three-result cap and one-call boundary, intermediate file
 changes, single and batch saves, rollback, one-file HTML packaging, backup
 placement, upload-before-connection receipts, local request authentication,
 timeouts, retry, duplicate upload prevention, and pre-network snapshot checks.
+
+For an already-connected brain, the uploader requests browser authorization
+before replacing its files. A validated `uploaded` receipt displays "Brain
+updated" and opens the existing brain; a `pending_connection` receipt displays
+"Files uploaded" and its connection link.

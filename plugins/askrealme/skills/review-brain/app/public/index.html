@@ -1643,8 +1643,8 @@
       }
 
       function showUploadResult(upload) {
-        $("#upload-result-title").textContent = "Files uploaded";
-        $("#upload-result-summary").textContent = "Connect these files to your brain on AskReal.me. You can close this local tool.";
+        $("#upload-result-title").textContent = upload.mode === "uploaded" ? "Brain updated" : "Files uploaded";
+        $("#upload-result-summary").textContent = upload.mode === "uploaded" ? "Your authorized update is complete." : "Connect these files to your brain on AskReal.me. You can close this local tool.";
         $("#upload-uuid").textContent = upload.brainId;
         $("#upload-file-count").textContent = upload.fileCount.toLocaleString();
         $("#upload-expires-label").classList.add("hidden");
@@ -1652,7 +1652,7 @@
         $("#upload-signin").classList.remove("hidden");
         $("#copy-upload-link").classList.remove("hidden");
         $("#upload-signin").href = upload.connectUrl;
-        $("#upload-signin").textContent = "Connect files";
+        $("#upload-signin").textContent = upload.mode === "uploaded" ? "Open brain" : "Connect files";
         $("#upload-local-warning").classList.add("hidden");
         $("#upload-dialog").showModal();
       }

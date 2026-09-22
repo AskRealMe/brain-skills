@@ -814,16 +814,16 @@ export async function requestUploadAuthorization({ brainId, openBrowserImpl = op
 export function pendingUploadResult(payload, brainId, fileCount, environment = process.env) {
   if (payload?.success !== true || payload.mode !== "pending_connection"
     || payload.brainId !== brainId || payload.fileCount !== fileCount
-    || typeof payload.uploadId !== "string"
-    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(payload.uploadId)) {
+    || (payload.uploadId !== undefined && (typeof payload.uploadId !== "string"
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(payload.uploadId)))) {
     fail("INVALID_RESPONSE", "The upload receipt does not match this brain and its files.");
   }
-  const expectedPath = `/upload-connect?${new URLSearchParams({ brainId, uploadId: payload.uploadId })}`;
+  const expectedPath = `/upload-connect?${new URLSearchParams({ brainId, ...(payload.uploadId ? { uploadId: payload.uploadId } : {}) })}`;
   const expectedUrl = new URL(expectedPath, resolveSiteBase(environment)).toString();
   if (payload.connectPath !== expectedPath || payload.connectUrl !== expectedUrl) {
     fail("INVALID_RESPONSE", "The upload service returned an invalid connection link.");
   }
-  return { mode: payload.mode, brainId, uploadId: payload.uploadId, fileCount,
+  return { mode: payload.mode, brainId, ...(payload.uploadId ? { uploadId: payload.uploadId } : {}), fileCount,
     connectPath: expectedPath, connectUrl: expectedUrl };
 }
 
@@ -843,6 +843,12 @@ export async function stagePreparedBrain(options = {}) {
   const { response, payload } = await fetchWithTimeout(fetchImpl, endpoint.toString(), {
     method: "POST", body: form, redirect: "error",
   }, timeoutMs);
+  if (response.status === 409 && payload.code === "BRAIN_ALREADY_CONNECTED") {
+    // Existing content must never be overwritten by an unsigned submission.
+    const authorize = options.authorize ?? requestUploadAuthorization;
+    const uploadAuthorization = await authorize({ brainId: prepared.brainId });
+    return uploadPreparedBrain({ prepared, fetchImpl, environment, timeoutMs, uploadAuthorization });
+  }
   if (!response.ok) fail("HTTP_ERROR", typeof payload.message === "string" ? payload.message : "The upload failed. Run submit-brain again.", { status: response.status });
   return { ...commonUploadResult(prepared, prepared.brainId, "pending_connection"),
     ...pendingUploadResult(payload, prepared.brainId, prepared.fileCount, environment) };
