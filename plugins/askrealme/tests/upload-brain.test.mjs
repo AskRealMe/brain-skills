@@ -25,13 +25,17 @@ import {
   openAuthorizationUrl,
   prepareBrainUpload,
   requestUploadAuthorization,
-  resolveBrainArchiveEndpoint,
+  resolveBrainUploadEndpoint,
+  stagePreparedBrain,
+  pendingUploadResult,
   resolveDraftEndpoint,
   resolveDraftStatusEndpoint,
   uploadBrain,
   uploadPreparedBrain,
 } from "../lib/upload-brain.mjs";
 
+const BRAIN_ID = "cmubcp5ov00lq8v360u963doh";
+const SECOND_BRAIN_ID = "cmubcp5ov00lq8v360u963doz";
 const UUID_ONE = "11111111-1111-4111-8111-111111111111";
 const UUID_TWO = "22222222-2222-4222-8222-222222222222";
 const UPLOAD_CODE = "7Qm3p9Kx2Nw8Za4Bc6De8Fg0Hi2Jk4Lm6No8Pq0Rs2T";
@@ -50,32 +54,18 @@ function write(directory, relativePath, content = "") {
   fs.writeFileSync(target, content);
 }
 
-function brainContent({ uuid = UUID_ONE, eol = "\n", body = "# Brain\n\nContent\n" } = {}) {
-  const fields = [`version: 1`, ...(uuid ? [`uuid: ${uuid}`] : [])];
+function brainContent({ brainId = BRAIN_ID, eol = "\n", body = "# Brain\n\nContent\n" } = {}) {
+  const fields = [`version: 1`, ...(brainId ? [`brain_id: ${brainId}`] : [])];
   return `---${eol}${fields.join(eol)}${eol}---${eol}${body.replaceAll("\n", eol)}`;
 }
 
 function createdResponse(fileCount, overrides = {}) {
-  return new Response(JSON.stringify({
-    success: true,
-    mode: "created",
-    uuid: UUID_ONE,
-    fileCount,
-    expiresAt: "2026-08-26T00:00:00.000Z",
-    confirmPath: `/brains/${UUID_ONE}/confirm`,
-    confirmUrl: `https://www.askreal.me/brains/${UUID_ONE}/confirm`,
-    ...overrides,
-  }), { status: 201, headers: { "content-type": "application/json" } });
+  const connectPath = `/upload-connect?brainId=${BRAIN_ID}&uploadId=${UUID_ONE}`;
+  return new Response(JSON.stringify({ success: true, mode: "pending_connection", brainId: BRAIN_ID,
+    uploadId: UUID_ONE, fileCount, connectPath, connectUrl: `https://www.askreal.me${connectPath}`, ...overrides }), { status: 201 });
 }
-
 function updatedResponse(fileCount, overrides = {}) {
-  return new Response(JSON.stringify({
-    success: true,
-    mode: "updated",
-    uuid: UUID_ONE,
-    fileCount,
-    ...overrides,
-  }), { status: 200, headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify({ success: true, mode: "uploaded", brainId: BRAIN_ID, fileCount, ...overrides }), { status: 200 });
 }
 
 function parseZip(archive) {
@@ -106,7 +96,7 @@ function parseZip(archive) {
   return files;
 }
 
-test("prepares a recursive snapshot with a client UUID, Unicode paths, and a deterministic Unicode-only slug", async () => {
+test("prepares a recursive snapshot with a dashboard brain ID, Unicode paths, and a deterministic Unicode-only slug", async () => {
   const project = tempDir("🧠");
   const output = path.join(project, "output");
   fs.mkdirSync(output);
@@ -120,18 +110,18 @@ test("prepares a recursive snapshot with a client UUID, Unicode paths, and a det
 
   assert.equal(prepared.name, "Actual Brain Name");
   assert.equal(prepared.slug, "brain-bf0e823c");
-  assert.equal(prepared.uuid, UUID_ONE);
+  assert.equal(prepared.brainId, BRAIN_ID);
   assert.deepEqual(
     prepared.files.map((file) => file.relativePath).sort(),
     ["BRAIN.md", "entities/people/José.md", "sources/meeting notes.md"].sort(),
   );
 });
 
-test("reads an existing root BRAIN.md uuid as the update identity", async () => {
+test("reads an existing root BRAIN.md brain_id as the update identity", async () => {
   const directory = tempDir("existing");
-  write(directory, "BRAIN.md", brainContent({ uuid: UUID_ONE }));
+  write(directory, "BRAIN.md", brainContent({ brainId: BRAIN_ID }));
   const prepared = await prepareBrainUpload(directory);
-  assert.equal(prepared.uuid, UUID_ONE);
+  assert.equal(prepared.brainId, BRAIN_ID);
 });
 
 test("accepts more than 40 files and exposes the backend limits", async () => {
@@ -305,7 +295,7 @@ test("builds a deterministic UTF-8 ZIP with valid CRC32, store, deflate, and cen
 test("uses secure direct backend endpoints and development-only overrides", () => {
   assert.equal(resolveDraftEndpoint({}), "https://askrealmeapi-production.up.railway.app/drafts");
   assert.equal(resolveDraftStatusEndpoint(UUID_ONE, {}), `https://askrealmeapi-production.up.railway.app/drafts/${UUID_ONE}`);
-  assert.equal(resolveBrainArchiveEndpoint(UUID_ONE, {}), `https://askrealmeapi-production.up.railway.app/brains/${UUID_ONE}/archive`);
+  assert.equal(resolveBrainUploadEndpoint(BRAIN_ID, {}), `https://askrealmeapi-production.up.railway.app/brains/${BRAIN_ID}/upload`);
   assert.equal(
     resolveDraftEndpoint({ NODE_ENV: "development", ASKREAL_API_URL: "http://127.0.0.1:3001/api/" }),
     "http://127.0.0.1:3001/api/drafts",
@@ -344,20 +334,20 @@ test("creates with exactly one archive part and uploads the untouched BRAIN.md s
   write(directory, "sources/café.md", "Content");
   let calls = 0;
 
-  const result = await uploadBrain({
-    brainDir: directory,
+  const result = await stagePreparedBrain({
+    prepared: await prepareBrainUpload(directory),
     draftStatus: "missing",
     environment: {},
     fetchImpl: async (url, init) => {
       calls += 1;
-      assert.equal(url, "https://askrealmeapi-production.up.railway.app/drafts");
+      assert.equal(url, `https://askrealmeapi-production.up.railway.app/brains/${BRAIN_ID}/uploads`);
       assert.equal(init.method, "POST");
       assert.equal(init.headers, undefined);
-      assert.deepEqual([...init.body.keys()], ["name", "slug", "archive"]);
-      assert.equal(init.body.getAll("archive").length, 1);
-      assert.equal(init.body.get("archive").name, "brain.zip");
+      assert.deepEqual([...init.body.keys()], ["name", "slug", "file"]);
+      assert.equal(init.body.getAll("file").length, 1);
+      assert.equal(init.body.get("file").name, "brain.zip");
       assert.equal(init.body.getAll("files").length, 0);
-      const archive = Buffer.from(await init.body.get("archive").arrayBuffer());
+      const archive = Buffer.from(await init.body.get("file").arrayBuffer());
       const entries = parseZip(archive);
       assert.equal(entries.find((entry) => entry.name === "BRAIN.md").content.toString("utf8"), originalBrain);
       return createdResponse(2);
@@ -365,9 +355,9 @@ test("creates with exactly one archive part and uploads the untouched BRAIN.md s
   });
 
   assert.equal(calls, 1);
-  assert.equal(result.mode, "created");
-  assert.equal(result.uuid, UUID_ONE);
-  assert.equal(result.confirmUrl, `https://www.askreal.me/brains/${UUID_ONE}/confirm`);
+  assert.equal(result.mode, "pending_connection");
+  assert.equal(result.brainId, BRAIN_ID);
+  assert.equal(result.connectUrl, `https://www.askreal.me/upload-connect?brainId=${BRAIN_ID}&uploadId=${UUID_ONE}`);
   assert.equal(Object.hasOwn(result, "brainFile"), false);
   assert.equal(fs.readFileSync(path.join(directory, "BRAIN.md"), "utf8"), originalBrain);
 });
@@ -381,25 +371,25 @@ test("sends the validated snapshot even if disk changes and preserves the change
   write(directory, "BRAIN.md", changed);
   let archivedBrain;
 
-  const result = await uploadPreparedBrain({
+  const result = await stagePreparedBrain({
     prepared,
     draftStatus: "missing",
     environment: {},
     fetchImpl: async (_url, init) => {
-      const archive = Buffer.from(await init.body.get("archive").arrayBuffer());
+      const archive = Buffer.from(await init.body.get("file").arrayBuffer());
       archivedBrain = parseZip(archive).find((entry) => entry.name === "BRAIN.md").content.toString("utf8");
       return createdResponse(1);
     },
   });
 
   assert.equal(archivedBrain, original);
-  assert.equal(result.mode, "created");
+  assert.equal(result.mode, "pending_connection");
   assert.equal(fs.readFileSync(path.join(directory, "BRAIN.md"), "utf8"), changed);
 });
 
 test("refuses missing upload authorization and explicitly rejects raw Firebase credentials before networking", async () => {
   const directory = tempDir("auth-required");
-  write(directory, "BRAIN.md", brainContent({ uuid: UUID_ONE }));
+  write(directory, "BRAIN.md", brainContent({ brainId: BRAIN_ID }));
   let calls = 0;
   await assert.rejects(
     () => uploadBrain({
@@ -422,9 +412,9 @@ test("refuses missing upload authorization and explicitly rejects raw Firebase c
   assert.equal(calls, 0);
 });
 
-test("updates the existing UUID endpoint with a one-use UploadCode and no sign-in fields", async () => {
+test("updates the existing brain endpoint with a one-use UploadCode and no sign-in fields", async () => {
   const directory = tempDir("update");
-  const original = brainContent({ uuid: UUID_ONE, body: "# Existing Brain\n" });
+  const original = brainContent({ brainId: BRAIN_ID, body: "# Existing Brain\n" });
   write(directory, "BRAIN.md", original);
 
   const result = await uploadBrain({
@@ -432,19 +422,19 @@ test("updates the existing UUID endpoint with a one-use UploadCode and no sign-i
     uploadAuthorization: UPLOAD_CODE,
     environment: {},
     fetchImpl: async (url, init) => {
-      assert.equal(url, `https://askrealmeapi-production.up.railway.app/brains/${UUID_ONE}/archive`);
+      assert.equal(url, `https://askrealmeapi-production.up.railway.app/brains/${BRAIN_ID}/upload`);
       assert.equal(init.method, "PUT");
       assert.deepEqual(init.headers, { Authorization: `UploadCode ${UPLOAD_CODE}` });
-      assert.deepEqual([...init.body.keys()], ["name", "slug", "archive"]);
-      const archive = Buffer.from(await init.body.get("archive").arrayBuffer());
+      assert.deepEqual([...init.body.keys()], ["name", "slug", "file"]);
+      const archive = Buffer.from(await init.body.get("file").arrayBuffer());
       assert.equal(parseZip(archive).find((entry) => entry.name === "BRAIN.md").content.toString("utf8"), original);
       return updatedResponse(1);
     },
   });
 
   assert.deepEqual(result, {
-    mode: "updated",
-    uuid: UUID_ONE,
+    mode: "uploaded",
+    brainId: BRAIN_ID,
     name: "Existing Brain",
     slug: "update",
     fileCount: 1,
@@ -456,7 +446,7 @@ test("updates the existing UUID endpoint with a one-use UploadCode and no sign-i
 
 test("never exposes an upload code echoed by an upstream error", async () => {
   const directory = tempDir("redacted-update-error");
-  write(directory, "BRAIN.md", brainContent({ uuid: UUID_ONE }));
+  write(directory, "BRAIN.md", brainContent({ brainId: BRAIN_ID }));
   await assert.rejects(
     () => uploadBrain({
       brainDir: directory,
@@ -470,13 +460,13 @@ test("never exposes an upload code echoed by an upstream error", async () => {
   );
 });
 
-test("rejects update UUID mismatch and sign-in fields without changing local uuid", async () => {
+test("rejects update brain ID mismatch and invalid modes without changing local files", async () => {
   for (const response of [
-    updatedResponse(1, { uuid: UUID_TWO }),
-    updatedResponse(1, { signinPath: "/signin?token=482193" }),
+    updatedResponse(1, { brainId: SECOND_BRAIN_ID }),
+    updatedResponse(1, { mode: "wrong" }),
   ]) {
     const directory = tempDir("update-invalid");
-    const original = brainContent({ uuid: UUID_ONE });
+    const original = brainContent({ brainId: BRAIN_ID });
     write(directory, "BRAIN.md", original);
     await assert.rejects(
       () => uploadBrain({
@@ -486,7 +476,7 @@ test("rejects update UUID mismatch and sign-in fields without changing local uui
         fetchImpl: async () => response,
       }),
       (error) => error instanceof UploadBrainError
-        && new Set(["UUID_MISMATCH", "INVALID_RESPONSE"]).has(error.code),
+        && new Set(["BRAIN_ID_MISMATCH", "INVALID_RESPONSE"]).has(error.code),
     );
     assert.equal(fs.readFileSync(path.join(directory, "BRAIN.md"), "utf8"), original);
   }
@@ -494,14 +484,15 @@ test("rejects update UUID mismatch and sign-in fields without changing local uui
 
 test("invalid created response and HTTP failure leave local BRAIN.md untouched", async () => {
   for (const response of [
-    createdResponse(1, { uuid: "not-a-uuid" }),
+    createdResponse(1, { uploadId: "not-a-uuid" }),
     new Response(JSON.stringify({ message: "unavailable" }), { status: 503 }),
   ]) {
     const directory = tempDir("create-invalid");
     const original = brainContent();
     write(directory, "BRAIN.md", original);
-    await assert.rejects(() => uploadBrain({
-      brainDir: directory,
+    const awaitPrepared = await prepareBrainUpload(directory);
+    await assert.rejects(() => stagePreparedBrain({
+      prepared: awaitPrepared,
       draftStatus: "missing",
       environment: {},
       fetchImpl: async () => response,
@@ -541,12 +532,12 @@ test("expected snapshot rejects added, deleted, and modified files before networ
   }
 });
 
-test("rejects a BRAIN.md without the client-created UUID", async () => {
+test("rejects a BRAIN.md without the dashboard brain ID", async () => {
   const directory = tempDir("missing-uuid");
-  write(directory, "BRAIN.md", brainContent({ uuid: null }));
+  write(directory, "BRAIN.md", brainContent({ brainId: null }));
   await assert.rejects(
     () => prepareBrainUpload(directory),
-    (error) => error instanceof UploadBrainError && error.code === "BRAIN_UUID_REQUIRED",
+    (error) => error instanceof UploadBrainError && error.code === "BRAIN_ID_REQUIRED",
   );
 });
 
@@ -555,7 +546,7 @@ test("aborts a hanging backend and clears the timer after success", async () => 
   write(hanging, "BRAIN.md", brainContent());
   const prepared = await prepareBrainUpload(hanging);
   let abortedSignal;
-  await assert.rejects(() => uploadPreparedBrain({
+  await assert.rejects(() => stagePreparedBrain({
     prepared,
     draftStatus: "missing",
     environment: {},
@@ -571,7 +562,7 @@ test("aborts a hanging backend and clears the timer after success", async () => 
   write(successful, "BRAIN.md", brainContent());
   const successPrepared = await prepareBrainUpload(successful);
   let successSignal;
-  await uploadPreparedBrain({
+  await stagePreparedBrain({
     prepared: successPrepared,
     draftStatus: "missing",
     environment: {},
@@ -590,7 +581,7 @@ test("loopback auth validates production CORS, PNA, strict fields, and keeps onl
   let authorizationUrl;
   const stderr = { text: "", write(value) { this.text += value; } };
   const auth = requestUploadAuthorization({
-    uuid: UUID_ONE,
+    brainId: BRAIN_ID,
     timeoutMs: 2_000,
     stderr,
     openBrowserImpl: async (value) => {
@@ -641,8 +632,9 @@ test("loopback auth validates production CORS, PNA, strict fields, and keeps onl
   assert.equal(await auth, UPLOAD_CODE);
   assert.equal(authorizationUrl.origin, PUBLIC_SITE_URL);
   assert.equal(authorizationUrl.pathname, "/upload-authorize");
-  assert.equal(authorizationUrl.searchParams.get("brainId"), UUID_ONE);
-  assert.equal(stderr.text, "");
+  assert.equal(authorizationUrl.searchParams.get("brainId"), BRAIN_ID);
+  assert.match(stderr.text, /Authorize this upload in your browser/);
+  assert.ok(!stderr.text.includes(UPLOAD_CODE));
   assert.doesNotMatch(authorizationUrl.toString(), new RegExp(UPLOAD_CODE, "u"));
 });
 
@@ -650,7 +642,7 @@ test("browser-open failure prints only the authorization URL and keeps waiting",
   const stderr = { text: "", write(value) { this.text += value; } };
   let openedUrl;
   const uploadAuthorization = await requestUploadAuthorization({
-    uuid: UUID_ONE,
+    brainId: BRAIN_ID,
     timeoutMs: 2_000,
     stderr,
     openBrowserImpl: async (value) => {
@@ -674,7 +666,7 @@ test("browser-open failure prints only the authorization URL and keeps waiting",
 
 test("loopback auth has a finite timeout", async () => {
   await assert.rejects(() => requestUploadAuthorization({
-    uuid: UUID_ONE,
+    brainId: BRAIN_ID,
     timeoutMs: 10,
     openBrowserImpl: async () => true,
   }), (error) => error instanceof UploadBrainError && error.code === "AUTH_TIMEOUT");
@@ -697,4 +689,49 @@ test("Windows browser opening uses rundll32 argv without a command shell", async
     args: ["url.dll,FileProtocolHandler", url],
     options: { detached: true, stdio: "ignore" },
   }]);
+});
+
+test("pending receipts reject foreign links, wrong identities, and wrong counts", async () => {
+  const payload = await createdResponse(2).json();
+  assert.equal(pendingUploadResult(payload, BRAIN_ID, 2, {}).brainId, BRAIN_ID);
+  for (const bad of [
+    { ...payload, brainId: SECOND_BRAIN_ID }, { ...payload, fileCount: 3 },
+    { ...payload, connectUrl: 'https://attacker.example/upload-connect' },
+    { ...payload, connectUrl: payload.connectUrl + '#extra' },
+    { ...payload, uploadId: '../other' },
+  ]) assert.throws(() => pendingUploadResult(bad, BRAIN_ID, 2, {}), /receipt|connection link/);
+});
+
+test("CLI finishes after an unauthenticated upload and returns a link without a loopback callback", async () => {
+  const { createServer } = await import('node:http');
+  const { spawn } = await import('node:child_process');
+  const directory = tempDir('cli-upload-first');
+  write(directory, 'BRAIN.md', brainContent());
+  let requests = 0;
+  const server = createServer(async (request, response) => {
+    requests += 1;
+    assert.equal(request.url, `/brains/${BRAIN_ID}/uploads`);
+    assert.equal(request.method, 'POST'); assert.equal(request.headers.authorization, undefined);
+    const chunks = []; for await (const chunk of request) chunks.push(chunk);
+    assert.ok(Buffer.concat(chunks).includes(Buffer.from('brain.zip')));
+    const value = await createdResponse(1).json();
+    value.connectUrl = `http://127.0.0.1:${server.address().port}${value.connectPath}`;
+    response.writeHead(201, { 'Content-Type': 'application/json' }).end(JSON.stringify(value));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const child = spawn(process.execPath, [new URL('../lib/upload-brain.mjs', import.meta.url).pathname, directory], {
+      env: { ...process.env, NODE_ENV: 'test', ASKREAL_API_URL: base, ASKREAL_SITE_URL: base }, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '', errors = '';
+    child.stdout.on('data', (chunk) => { output += chunk; });
+    child.stderr.on('data', (chunk) => { errors += chunk; });
+    const timer = setTimeout(() => child.kill(), 5000);
+    const code = await new Promise((resolve) => child.on('exit', resolve)); clearTimeout(timer);
+    assert.equal(code, 0, errors); assert.equal(requests, 1);
+    const result = JSON.parse(output); assert.equal(result.mode, 'pending_connection');
+    assert.equal(result.brainId, BRAIN_ID); assert.ok(result.connectUrl.startsWith(base + '/upload-connect?'));
+    assert.doesNotMatch(output + errors, /callback|Authorize this upload/);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
 });

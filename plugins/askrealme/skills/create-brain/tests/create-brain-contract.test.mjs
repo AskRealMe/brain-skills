@@ -134,11 +134,11 @@ test("Automatic resolves optional prompts and hands validated output to the exis
   assert.match(skill, /all checks pass, read and execute \[submit-brain\]/);
   assert.match(skill, /absolute `\$BRAIN_ROOT\/output\/` path and the original brain-id/);
   assert.match(skill, /stop\s+or build locally cancels the automatic submission handoff/);
-  assert.match(skill, /Do not loop\s+retries or report success without a matching `uploaded` response/);
+  assert.match(skill, /Do not report success without a matching `pending_connection`\s+receipt/);
   assert.match(submit, /verify its `brain_id` matches the supplied id/);
   assert.match(submit, /A mismatch blocks\s+upload/);
   assert.match(submit, /without another picker, review UI, or confirmation question/);
-  assert.match(submit, /opening the browser is not an upload success/);
+  assert.match(submit, /never that the brain is already updated/);
   assert.match(submit, /node "\/absolute\/path\/to\/upload-brain\.mjs" "\/absolute\/path\/to\/output"/);
 });
 

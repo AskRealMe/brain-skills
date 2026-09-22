@@ -810,12 +810,49 @@ export async function requestUploadAuthorization({ brainId, openBrowserImpl = op
   }
 }
 
+/** Validate the pending receipt before exposing its link to a browser. */
+export function pendingUploadResult(payload, brainId, fileCount, environment = process.env) {
+  if (payload?.success !== true || payload.mode !== "pending_connection"
+    || payload.brainId !== brainId || payload.fileCount !== fileCount
+    || typeof payload.uploadId !== "string"
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(payload.uploadId)) {
+    fail("INVALID_RESPONSE", "The upload receipt does not match this brain and its files.");
+  }
+  const expectedPath = `/upload-connect?${new URLSearchParams({ brainId, uploadId: payload.uploadId })}`;
+  const expectedUrl = new URL(expectedPath, resolveSiteBase(environment)).toString();
+  if (payload.connectPath !== expectedPath || payload.connectUrl !== expectedUrl) {
+    fail("INVALID_RESPONSE", "The upload service returned an invalid connection link.");
+  }
+  return { mode: payload.mode, brainId, uploadId: payload.uploadId, fileCount,
+    connectPath: expectedPath, connectUrl: expectedUrl };
+}
+
+/** Store the validated snapshot first; the owner connects it later on the website. */
+export async function stagePreparedBrain(options = {}) {
+  rejectRawCredential(options);
+  const { prepared, fetchImpl = globalThis.fetch, environment = process.env,
+    timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS } = options;
+  if (!prepared || !preparedSnapshots.has(prepared)) fail("INVALID_PREPARED_UPLOAD", "A snapshot created by prepareBrainUpload is required.");
+  validateTimeout(timeoutMs);
+  const endpoint = new URL(resolveBrainUploadEndpoint(prepared.brainId, environment));
+  endpoint.pathname += "s";
+  const form = new FormData();
+  form.append("name", prepared.name);
+  form.append("slug", prepared.slug);
+  form.append("file", new Blob([buildBrainZip(prepared)], { type: "application/zip" }), "brain.zip");
+  const { response, payload } = await fetchWithTimeout(fetchImpl, endpoint.toString(), {
+    method: "POST", body: form, redirect: "error",
+  }, timeoutMs);
+  if (!response.ok) fail("HTTP_ERROR", typeof payload.message === "string" ? payload.message : "The upload failed. Run submit-brain again.", { status: response.status });
+  return { ...commonUploadResult(prepared, prepared.brainId, "pending_connection"),
+    ...pendingUploadResult(payload, prepared.brainId, prepared.fileCount, environment) };
+}
+
 async function runCli() {
   const [brainDir, ...extra] = process.argv.slice(2);
   if (!brainDir || extra.length > 0) fail("USAGE", "Usage: node upload-brain.mjs <absolute-brain-directory>");
   const prepared = await prepareBrainUpload(brainDir);
-  const uploadAuthorization = await requestUploadAuthorization({ brainId: prepared.brainId });
-  const result = await uploadPreparedBrain({ prepared, uploadAuthorization });
+  const result = await stagePreparedBrain({ prepared });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 

@@ -24,11 +24,13 @@ import {
   parsePrivacyReviewResponse,
   parseArguments,
   resolveRuntime,
-  UPLOAD_AUTH_TTL_MS,
   validateAiReviewRequest,
   validateChatContext,
   validateChatMessages,
 } from "../app/server.mjs";
+const TEST_BRAIN_ID = "cmubcp5ov00lq8v360u963doh";
+const TEST_UPLOAD_ID = "123e4567-e89b-42d3-a456-426614174000";
+const CONNECT_PATH = `/upload-connect?brainId=${TEST_BRAIN_ID}&uploadId=${TEST_UPLOAD_ID}`;
 const TEST_UUID = "123e4567-e89b-42d3-a456-426614174000";
 const UPLOAD_CODE = "A".repeat(43);
 const SECOND_UPLOAD_CODE = "C".repeat(43);
@@ -46,7 +48,7 @@ function makeBrain(root, {
   if (notesContent !== undefined) links.push("- [notes.md](notes.md) — Notes.");
   fs.writeFileSync(
     path.join(brain, "BRAIN.md"),
-    `---\ntitle: "Review Brain"\ndescription: "A brain for privacy review."\n${brainId ? `uuid: ${brainId}\n` : ""}---\n\n# Review Brain\n\nA brain for privacy review.\n\nThis file is the starting point for the AI brain.\n\n## Files\n\n${links.join("\n")}\n`,
+    `---\ntitle: "Review Brain"\ndescription: "A brain for privacy review."\n${brainId ? `${brainId.startsWith("c") ? "brain_id" : "uuid"}: ${brainId}\n` : ""}---\n\n# Review Brain\n\nA brain for privacy review.\n\nThis file is the starting point for the AI brain.\n\n## Files\n\n${links.join("\n")}\n`,
   );
   return brain;
 }
@@ -64,39 +66,8 @@ function mutationHeaders(base, mutationToken) {
 }
 
 function uploadResult(overrides = {}) {
-  return {
-    mode: "created",
-    name: "Review Brain",
-    slug: "review-brain",
-    fileCount: 2,
-    totalBytes: 100,
-    expiresAt: "2099-01-02T03:04:05.000Z",
-    confirmPath: `/brains/${TEST_UUID}/confirm`,
-    confirmUrl: `https://www.askreal.me/brains/${TEST_UUID}/confirm`,
-    uuid: TEST_UUID,
-    ...overrides,
-  };
-}
-
-function updatedUploadResult(overrides = {}) {
-  return {
-    mode: "updated",
-    name: "Review Brain",
-    slug: "review-brain",
-    fileCount: 2,
-    totalBytes: 100,
-    uuid: TEST_UUID,
-    ...overrides,
-  };
-}
-
-function draftStatus(status) {
-  return async (uuid) => ({
-    status,
-    confirmPath: `/brains/${uuid}/confirm`,
-    confirmUrl: `https://www.askreal.me/brains/${uuid}/confirm`,
-    ...(status === "pending" ? { expiresAt: "2099-01-02T03:04:05.000Z" } : {}),
-  });
+  return { mode: "pending_connection", brainId: TEST_BRAIN_ID, uploadId: TEST_UPLOAD_ID,
+    fileCount: 2, connectPath: CONNECT_PATH, connectUrl: `https://www.askreal.me${CONNECT_PATH}`, ...overrides };
 }
 
 function makeRecursiveBrain(root) {
@@ -792,7 +763,7 @@ test("AI review endpoint receives current browser drafts and matching Privacy fi
 
 test("server exposes one self-contained HTML, chat, and file save endpoints", async () => {
   const root = tempRoot();
-  const brain = makeBrain(root, { brainId: TEST_UUID });
+  const brain = makeBrain(root, { brainId: TEST_BRAIN_ID });
   const calls = [];
   const uploads = [];
   const { server, mutationToken } = createReviewServer({
@@ -800,7 +771,6 @@ test("server exposes one self-contained HTML, chat, and file save endpoints", as
     runtime: "codex",
     reviewRoot: path.join(root, "review"),
     verifyRuntime: false,
-    draftStatusRunner: draftStatus("missing"),
     chatRunner: async (runtime, messages, context, privacyFindings) => {
       calls.push({ runtime, messages, context, privacyFindings });
       return "Test response";
@@ -842,21 +812,10 @@ test("server exposes one self-contained HTML, chat, and file save endpoints", as
     assert.match(html, /\/api\/upload/);
     assert.match(html, /id="upload-uuid"/);
     assert.match(html, /id="upload-local-warning"/);
-    assert.match(html, /\/api\/upload-auth\/start/);
-    assert.match(html, /\/api\/upload-auth\/status/);
-    assert.match(html, /window\.open\("about:blank"/);
-    assert.doesNotMatch(html, /if \(approvalWindow\.closed\)/);
-    assert.ok(
-      html.indexOf('await api("/api/save-all"') < html.indexOf("await authorizeExistingBrain(approvalWindow)"),
-      "save-and-upload must persist dirty drafts before requesting upload authorization",
-    );
-    assert.doesNotMatch(html, /postMessage/);
+    assert.doesNotMatch(html, /upload-auth|authorizeExistingBrain|window\.open\("about:blank"/);
     assert.doesNotMatch(html, /uploadCode|idToken/);
-    assert.match(html, /one-time brain ZIP update/);
-    assert.match(html, /Target brain UUID/);
-    assert.doesNotMatch(html, /Repair BRAIN\.md/);
-    assert.match(html, /Confirm ownership/);
-    assert.match(html, /next\.upload\.mode === "created"/);
+    assert.match(html, /Files will be sent now/);
+    assert.match(html, /Connect these files/);
 
     const chat = await fetch(`${base}/api/chat`, {
       method: "POST",
@@ -905,381 +864,21 @@ test("server exposes one self-contained HTML, chat, and file save endpoints", as
     assert.equal(uploads[0].brainDir, fs.realpathSync(brain));
     assert.equal(uploads[0].content, "# project\n\nSaved before upload\n");
     assert.equal(uploads[0].uploadAuthorization, undefined);
-    assert.equal(uploads[0].status, "missing");
-    assert.equal(uploadedState.upload.mode, "created");
+    assert.equal(uploads[0].status, undefined);
+    assert.equal(uploadedState.upload.mode, "pending_connection");
     assert.equal(uploadedState.upload.fileCount, 2);
-    assert.equal(uploadedState.upload.confirmUrl, `https://www.askreal.me/brains/${TEST_UUID}/confirm`);
-    assert.equal(uploadedState.upload.uuid, TEST_UUID);
+    assert.equal(uploadedState.upload.connectUrl, `https://www.askreal.me${CONNECT_PATH}`);
+    assert.equal(uploadedState.upload.brainId, TEST_BRAIN_ID);
     assert.equal(Object.hasOwn(uploadedState.upload, "brainFile"), false);
     assert.deepEqual(uploadedState.sessionSync, { updated: true, changed: [] });
-    assert.equal(uploadedState.brainId, TEST_UUID);
+    assert.equal(uploadedState.brainId, TEST_BRAIN_ID);
     const uploadedBrainFile = uploadedState.files.find((file) => file.name === "BRAIN.md");
-    assert.match(uploadedBrainFile.content, new RegExp(`^uuid: ${TEST_UUID}$`, "m"));
+    assert.match(uploadedBrainFile.content, new RegExp(`^brain_id: ${TEST_BRAIN_ID}$`, "m"));
     assert.equal(uploadedBrainFile.hash, sha256(uploadedBrainFile.content));
-    assert.match(fs.readFileSync(path.join(brain, "BRAIN.md"), "utf8"), new RegExp(`^uuid: ${TEST_UUID}$`, "m"));
+    assert.match(fs.readFileSync(path.join(brain, "BRAIN.md"), "utf8"), new RegExp(`^brain_id: ${TEST_BRAIN_ID}$`, "m"));
 
     assert.equal((await fetch(`${base}/styles.css`)).status, 404);
     assert.equal((await fetch(`${base}/app.js`)).status, 404);
-  } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-  }
-});
-
-test("a pending first upload reopens its ownership confirmation without uploading again", async () => {
-  const root = tempRoot();
-  const brain = makeBrain(root, { brainId: TEST_UUID });
-  const before = fs.readFileSync(path.join(brain, "BRAIN.md"), "utf8");
-  let calls = 0;
-  const { server, mutationToken } = createReviewServer({
-    brain,
-    runtime: "codex",
-    reviewRoot: path.join(root, "review"),
-    verifyRuntime: false,
-    draftStatusRunner: draftStatus("pending"),
-    uploadRunner: async () => { calls += 1; },
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  try {
-    const start = await fetch(`${base}/api/upload-auth/start`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
-    });
-    assert.equal(start.status, 200);
-    assert.deepEqual(await start.json(), {
-      mode: "pending",
-      confirmUrl: `https://www.askreal.me/brains/${TEST_UUID}/confirm`,
-      expiresAt: "2099-01-02T03:04:05.000Z",
-    });
-
-    const duplicate = await fetch(`${base}/api/upload`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ files: [] }),
-    });
-    assert.equal(duplicate.status, 409);
-    assert.match((await duplicate.json()).error, /waiting for ownership confirmation/);
-    assert.equal(calls, 0);
-    assert.equal(fs.readFileSync(path.join(brain, "BRAIN.md"), "utf8"), before);
-  } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-  }
-});
-
-test("an existing brain uses a strict one-time upload code without exposing it", async () => {
-  const root = tempRoot();
-  const brain = makeBrain(root, { brainId: TEST_UUID });
-  const calls = [];
-  const { server, mutationToken } = createReviewServer({
-    brain,
-    runtime: "codex",
-    reviewRoot: path.join(root, "review"),
-    verifyRuntime: false,
-    draftStatusRunner: draftStatus("claimed"),
-    uploadRunner: async ({ prepared, uploadAuthorization }) => {
-      calls.push({
-        uuid: prepared.uuid,
-        uploadAuthorization,
-        files: prepared.files.map((file) => ({ path: file.relativePath, buffer: Buffer.isBuffer(file.content) })),
-      });
-      if (uploadAuthorization === SECOND_UPLOAD_CODE) {
-        throw new Error(`upstream echoed ${uploadAuthorization}`);
-      }
-      return updatedUploadResult({ fileCount: prepared.fileCount, totalBytes: prepared.totalBytes });
-    },
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  try {
-    const initialState = await (await fetch(`${base}/api/state`)).json();
-    assert.equal(initialState.brainId, TEST_UUID);
-
-    const started = await fetch(`${base}/api/upload-auth/start`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
-    });
-    let auth = await started.json();
-    assert.equal(started.status, 200);
-    const authorizeUrl = new URL(auth.authorizeUrl);
-    assert.equal(authorizeUrl.origin, "https://www.askreal.me");
-    assert.equal(authorizeUrl.pathname, "/upload-authorize");
-    assert.equal(authorizeUrl.searchParams.get("brainId"), TEST_UUID);
-    assert.equal(authorizeUrl.searchParams.get("state"), auth.state);
-    assert.equal(authorizeUrl.searchParams.get("callback"), `${base}/api/upload-auth/callback`);
-    assert.equal(authorizeUrl.searchParams.has("uploadCode"), false);
-    assert.doesNotMatch(JSON.stringify(auth), new RegExp(UPLOAD_CODE, "u"));
-
-    const preflight = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "OPTIONS",
-      headers: {
-        "Origin": "https://www.askreal.me",
-        "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": "content-type",
-        "Access-Control-Request-Private-Network": "true",
-      },
-    });
-    assert.equal(preflight.status, 204);
-    assert.equal(preflight.headers.get("access-control-allow-origin"), "https://www.askreal.me");
-    assert.equal(preflight.headers.get("access-control-allow-private-network"), "true");
-
-    const hostilePreflight = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "OPTIONS",
-      headers: {
-        "Origin": "https://attacker.example",
-        "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": "content-type",
-      },
-    });
-    assert.equal(hostilePreflight.status, 403);
-
-    const wrongOrigin = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://attacker.example" },
-      body: JSON.stringify({ state: auth.state, uploadCode: UPLOAD_CODE }),
-    });
-    assert.equal(wrongOrigin.status, 403);
-
-    const extraBrainId = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({
-        state: auth.state,
-        brainId: "223e4567-e89b-42d3-a456-426614174000",
-        uploadCode: UPLOAD_CODE,
-      }),
-    });
-    assert.equal(extraBrainId.status, 400);
-
-    const rawIdToken = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({
-        state: auth.state,
-        uploadCode: UPLOAD_CODE,
-        idToken: "header.payload.signature-value",
-      }),
-    });
-    assert.equal(rawIdToken.status, 400);
-
-    const stillPending = await fetch(`${base}/api/upload-auth/status`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ state: auth.state, brainId: TEST_UUID }),
-    });
-    assert.equal((await stillPending.json()).status, "pending");
-
-    const wrongState = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({ state: "B".repeat(43), uploadCode: UPLOAD_CODE }),
-    });
-    assert.equal(wrongState.status, 403);
-
-    const failedCallback = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({ state: auth.state, uploadCode: "short" }),
-    });
-    assert.equal(failedCallback.status, 400);
-
-    const failedStatus = await fetch(`${base}/api/upload-auth/status`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ state: auth.state, brainId: TEST_UUID }),
-    });
-    const failedStatusBody = await failedStatus.json();
-    assert.equal(failedStatusBody.status, "failed");
-    assert.match(failedStatusBody.error, /Try again/);
-    assert.doesNotMatch(JSON.stringify(failedStatusBody), new RegExp(UPLOAD_CODE, "u"));
-
-    const failedState = auth.state;
-    const restarted = await fetch(`${base}/api/upload-auth/start`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
-    });
-    auth = await restarted.json();
-    assert.notEqual(auth.state, failedState);
-
-    const pending = await fetch(`${base}/api/upload-auth/status`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ state: auth.state, brainId: TEST_UUID }),
-    });
-    assert.equal((await pending.json()).status, "pending");
-
-    const callback = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({ state: auth.state, uploadCode: UPLOAD_CODE }),
-    });
-    const callbackBody = await callback.json();
-    assert.equal(callback.status, 200);
-    assert.deepEqual(callbackBody, { accepted: true });
-    assert.doesNotMatch(JSON.stringify(callbackBody), new RegExp(UPLOAD_CODE, "u"));
-
-    const repeatedCallback = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({ state: auth.state, uploadCode: UPLOAD_CODE }),
-    });
-    assert.equal(repeatedCallback.status, 409);
-
-    const authorized = await fetch(`${base}/api/upload-auth/status`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ state: auth.state, brainId: TEST_UUID }),
-    });
-    const authorizedBody = await authorized.json();
-    assert.equal(authorizedBody.status, "authorized");
-    assert.doesNotMatch(JSON.stringify(authorizedBody), new RegExp(UPLOAD_CODE, "u"));
-
-    const upload = await fetch(`${base}/api/upload`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ files: [], authState: auth.state }),
-    });
-    const uploaded = await upload.json();
-    assert.equal(upload.status, 200);
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].uuid, TEST_UUID);
-    assert.equal(calls[0].uploadAuthorization, UPLOAD_CODE);
-    assert.ok(calls[0].files.every((file) => file.buffer));
-    assert.equal(uploaded.upload.mode, "updated");
-    assert.equal(uploaded.upload.uuid, TEST_UUID);
-    assert.equal("expiresAt" in uploaded.upload, false);
-    assert.equal("signinUrl" in uploaded.upload, false);
-    assert.deepEqual(uploaded.sessionSync, { updated: true, changed: [] });
-    assert.doesNotMatch(JSON.stringify(uploaded), new RegExp(UPLOAD_CODE, "u"));
-    for (const file of fs.readdirSync(brain)) {
-      if (file.endsWith(".md")) {
-        assert.doesNotMatch(fs.readFileSync(path.join(brain, file), "utf8"), new RegExp(UPLOAD_CODE, "u"));
-      }
-    }
-
-    const reused = await fetch(`${base}/api/upload`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ files: [], authState: auth.state }),
-    });
-    assert.equal(reused.status, 403);
-    assert.equal(calls.length, 1);
-
-    const secondStart = await fetch(`${base}/api/upload-auth/start`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
-    });
-    const secondAuth = await secondStart.json();
-    const secondCallback = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({ state: secondAuth.state, uploadCode: SECOND_UPLOAD_CODE }),
-    });
-    assert.equal(secondCallback.status, 200);
-    const failedUpload = await fetch(`${base}/api/upload`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ files: [], authState: secondAuth.state }),
-    });
-    const failedUploadBody = await failedUpload.json();
-    assert.equal(failedUpload.status, 502);
-    assert.doesNotMatch(JSON.stringify(failedUploadBody), new RegExp(SECOND_UPLOAD_CODE, "u"));
-    assert.match(failedUploadBody.error, /authorization code redacted/);
-    assert.equal(calls.length, 2);
-  } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-  }
-});
-
-test("upload authorization expires after five minutes and can be started again", async () => {
-  const root = tempRoot();
-  const brain = makeBrain(root, { brainId: TEST_UUID });
-  let clock = Date.parse("2026-08-25T12:00:00.000Z");
-  const { server, mutationToken } = createReviewServer({
-    brain,
-    runtime: "codex",
-    reviewRoot: path.join(root, "review"),
-    verifyRuntime: false,
-    draftStatusRunner: draftStatus("claimed"),
-    now: () => clock,
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  const startAuthorization = async () => {
-    const response = await fetch(`${base}/api/upload-auth/start`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
-    });
-    return response.json();
-  };
-  try {
-    const first = await startAuthorization();
-    clock += UPLOAD_AUTH_TTL_MS + 1;
-    const expired = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({
-        state: first.state,
-        uploadCode: UPLOAD_CODE,
-      }),
-    });
-    assert.equal(expired.status, 410);
-
-    const removed = await fetch(`${base}/api/upload-auth/status`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ state: first.state, brainId: TEST_UUID }),
-    });
-    assert.equal(removed.status, 403);
-
-    const retry = await startAuthorization();
-    assert.notEqual(retry.state, first.state);
-    assert.equal(new URL(retry.authorizeUrl).searchParams.get("state"), retry.state);
-  } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-  }
-});
-
-test("authorized upload codes are removed from memory by the expiry timer", async () => {
-  const root = tempRoot();
-  const brain = makeBrain(root, { brainId: TEST_UUID });
-  const { server, mutationToken } = createReviewServer({
-    brain,
-    runtime: "codex",
-    reviewRoot: path.join(root, "review"),
-    verifyRuntime: false,
-    draftStatusRunner: draftStatus("claimed"),
-    uploadAuthTtlMs: 15,
-  });
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  try {
-    const started = await fetch(`${base}/api/upload-auth/start`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
-    });
-    const auth = await started.json();
-    const callback = await fetch(`${base}/api/upload-auth/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Origin": "https://www.askreal.me" },
-      body: JSON.stringify({
-        state: auth.state,
-        uploadCode: UPLOAD_CODE,
-      }),
-    });
-    assert.equal(callback.status, 200);
-    await new Promise((resolve) => setTimeout(resolve, 40));
-    const removed = await fetch(`${base}/api/upload-auth/status`, {
-      method: "POST",
-      headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ state: auth.state, brainId: TEST_UUID }),
-    });
-    assert.equal(removed.status, 403);
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
@@ -1327,23 +926,23 @@ test("mutation endpoints require the local page origin, JSON, and its session ca
     const authWrongOrigin = await fetch(`${base}/api/upload-auth/start`, {
       method: "POST",
       headers: mutationHeaders("https://attacker.example", mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
+      body: JSON.stringify({ brainId: TEST_BRAIN_ID }),
     });
     assert.equal(authWrongOrigin.status, 403);
 
     const authMissingCapability = await fetch(`${base}/api/upload-auth/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Origin": base },
-      body: JSON.stringify({ brainId: TEST_UUID }),
+      body: JSON.stringify({ brainId: TEST_BRAIN_ID }),
     });
     assert.equal(authMissingCapability.status, 403);
 
     const initialBrainAuth = await fetch(`${base}/api/upload-auth/start`, {
       method: "POST",
       headers: mutationHeaders(base, mutationToken),
-      body: JSON.stringify({ brainId: TEST_UUID }),
+      body: JSON.stringify({ brainId: TEST_BRAIN_ID }),
     });
-    assert.equal(initialBrainAuth.status, 409);
+    assert.equal(initialBrainAuth.status, 404);
     assert.equal(calls, 0);
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -1352,7 +951,7 @@ test("mutation endpoints require the local page origin, JSON, and its session ca
 
 test("upload endpoint blocks duplicates while one direct backend request is running", async () => {
   const root = tempRoot();
-  const brain = makeBrain(root, { brainId: TEST_UUID });
+  const brain = makeBrain(root, { brainId: TEST_BRAIN_ID });
   let releaseUpload;
   let markStarted;
   const started = new Promise((resolve) => { markStarted = resolve; });
@@ -1364,7 +963,6 @@ test("upload endpoint blocks duplicates while one direct backend request is runn
     runtime: "codex",
     reviewRoot: path.join(root, "review"),
     verifyRuntime: false,
-    draftStatusRunner: draftStatus("missing"),
     uploadRunner: async () => {
       calls += 1;
       markStarted();
@@ -1399,7 +997,7 @@ test("upload endpoint blocks duplicates while one direct backend request is runn
 
 test("upload endpoint unlocks saving and retry after an upstream timeout", async () => {
   const root = tempRoot();
-  const brain = makeBrain(root, { brainId: TEST_UUID });
+  const brain = makeBrain(root, { brainId: TEST_BRAIN_ID });
   let calls = 0;
   const result = uploadResult();
   const { server, mutationToken } = createReviewServer({
@@ -1407,7 +1005,6 @@ test("upload endpoint unlocks saving and retry after an upstream timeout", async
     runtime: "codex",
     reviewRoot: path.join(root, "review"),
     verifyRuntime: false,
-    draftStatusRunner: draftStatus("missing"),
     uploadRunner: async () => {
       calls += 1;
       if (calls === 1) {
@@ -1432,7 +1029,7 @@ test("upload endpoint unlocks saving and retry after an upstream timeout", async
 
     const retry = await fetch(`${base}/api/upload`, options);
     assert.equal(retry.status, 200);
-    assert.equal((await retry.json()).upload.confirmPath, `/brains/${TEST_UUID}/confirm`);
+    assert.equal((await retry.json()).upload.connectPath, CONNECT_PATH);
     assert.equal(calls, 2);
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -1485,50 +1082,40 @@ test("public directory contains only the self-contained HTML", () => {
 });
 
 
-test("upload navigation waits for successful updates and preserves confirmation and retry", async () => {
+test("upload UI returns a connection link without authorization or navigation and unlocks after errors", async () => {
   const html = fs.readFileSync(new URL("../app/public/index.html", import.meta.url), "utf8");
   const source = html.slice(html.indexOf("      async function uploadReviewedBrain()"), html.indexOf("      function renderChat()"));
-  for (const scenario of ["updated", "created", "pending", "failed"]) {
-    const navigations = [];
-    const results = [];
-    const errors = [];
-    let finishUpload;
-    let requested = false;
-    const uploadResponse = new Promise((resolve) => { finishUpload = resolve; });
+  for (const failed of [false, true]) {
+    const results = [], errors = [];
+    let finish;
+    const pending = new Promise((resolve) => { finish = resolve; });
     const context = vm.createContext({
-      saving: false,
-      uploading: false,
-      state: { brainId: TEST_UUID },
-      window: {
-        confirm: () => true,
-        open: () => ({ closed: false, close() {} }),
-        location: { assign: (url) => navigations.push(url) },
+      saving: false, uploading: false, state: { brainId: TEST_BRAIN_ID },
+      window: { confirm: () => true }, updateControls() {}, dirtyNames: () => [],
+      api: async (endpoint) => {
+        assert.equal(endpoint, "/api/upload"); await pending;
+        if (failed) throw new Error("Upload failed");
+        return { saved: { changed: [] }, sessionSync: { changed: [] }, upload: uploadResult() };
       },
-      updateControls() {},
-      dirtyNames: () => [],
-      authorizeExistingBrain: async () => ({ mode: scenario === "pending" ? "pending" : scenario === "created" ? "create" : "update" }),
-      api: async () => {
-        requested = true;
-        await uploadResponse;
-        if (scenario === "failed") throw new Error("Upload failed");
-        return { saved: { changed: [] }, sessionSync: { changed: [] }, upload: scenario === "created" ? uploadResult() : updatedUploadResult() };
-      },
-      mergeServerState() {},
-      showUploadResult: (result) => results.push(result),
-      setUploadStatus: (message, error) => { if (error) errors.push(message); },
-      toast() {},
+      mergeServerState() {}, showUploadResult: (result) => results.push(result),
+      setUploadStatus: (message, error) => { if (error) errors.push(message); }, toast() {},
     });
     vm.runInContext(source, context);
     const running = vm.runInContext("uploadReviewedBrain()", context);
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(navigations, [], `${scenario}: authorization alone must not navigate`);
-    assert.equal(requested, scenario !== "pending");
-    finishUpload();
-    await running;
-    assert.deepEqual(navigations, scenario === "updated" ? [`https://www.askreal.me/brains/${TEST_UUID}`] : []);
-    assert.equal(results.length, scenario === "created" ? 1 : 0);
-    if (scenario === "created") assert.equal(results[0].confirmUrl, uploadResult().confirmUrl);
-    assert.deepEqual(errors, scenario === "failed" ? ["Upload failed"] : []);
-    assert.equal(context.uploading, false, "controls unlock after every outcome");
+    assert.equal(context.uploading, true); assert.equal(results.length, 0);
+    finish(); await running;
+    assert.equal(results.length, failed ? 0 : 1);
+    if (!failed) assert.equal(results[0].connectUrl, uploadResult().connectUrl);
+    assert.deepEqual(errors, failed ? ["Upload failed"] : []);
+    assert.equal(context.uploading, false);
   }
+});
+
+test("the review editor preserves the dashboard brain_id", () => {
+  const root = tempRoot();
+  const brain = makeBrain(root, { brainId: TEST_BRAIN_ID });
+  const session = createSession(brain);
+  const original = fs.readFileSync(path.join(brain, 'BRAIN.md'), 'utf8');
+  assert.throws(() => saveDrafts(session, [{ name: 'BRAIN.md', content: original.replace(TEST_BRAIN_ID, 'cmubcp5ov00lq8v360u963doz') }], path.join(root, 'review')), /brain_id/);
+  assert.equal(fs.readFileSync(path.join(brain, 'BRAIN.md'), 'utf8'), original);
 });

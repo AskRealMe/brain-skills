@@ -18,9 +18,9 @@ import {
   sha256,
 } from "./lib.mjs";
 import {
-  getDraftStatus,
   prepareBrainUpload,
-  uploadPreparedBrain,
+  stagePreparedBrain,
+  pendingUploadResult,
 } from "../../../lib/upload-brain.mjs";
 
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -34,11 +34,6 @@ const MAX_AI_PRIVACY_FINDINGS = 3;
 const MAX_AI_REVIEW_TEXT = 500_000;
 const MAX_AI_REVIEW_FINDINGS = 12;
 const CHAT_TIMEOUT = 180_000;
-export const UPLOAD_AUTH_TTL_MS = 5 * 60_000;
-const PUBLIC_SITE_ORIGIN = "https://www.askreal.me";
-const UPLOAD_AUTH_CALLBACK_PATH = "/api/upload-auth/callback";
-const UUID_RE = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu;
-const AUTH_STATE_RE = /^[A-Za-z0-9_-]{43}$/u;
 const PRIVACY_CATEGORIES = Object.freeze({
   personal_information: "Personal information",
   credential: "Credential",
@@ -752,7 +747,7 @@ function publicState(session, runtime, privacyReview) {
   const findings = [...session.findings, ...aiFindings];
   return {
     id: session.id,
-    brainId: session.metadata.uuid,
+    brainId: session.metadata.brainId ?? session.metadata.uuid,
     title: session.metadata.title,
     description: session.metadata.description,
     runtime,
@@ -767,44 +762,6 @@ function publicState(session, runtime, privacyReview) {
       status: privacyReview.status,
       ...(privacyReview.error ? { error: privacyReview.error } : {}),
     },
-  };
-}
-
-function publicUploadResult(result) {
-  if (!result || !Number.isInteger(result.fileCount) || result.fileCount < 1) {
-    throw new Error("The upload response has an invalid file count.");
-  }
-  if (!new Set(["created", "updated"]).has(result.mode)) {
-    throw new Error("The upload response has an invalid operation.");
-  }
-  if (typeof result.uuid !== "string" || !UUID_RE.test(result.uuid)) {
-    throw new Error("The upload response has an invalid UUID.");
-  }
-  const upload = {
-    mode: result.mode,
-    name: result.name,
-    slug: result.slug,
-    fileCount: result.fileCount,
-    totalBytes: result.totalBytes,
-    uuid: result.uuid.toLowerCase(),
-  };
-  if (result.mode === "updated") return upload;
-
-  const confirmUrl = new URL(result.confirmUrl);
-  if (
-    result.confirmPath !== `/brains/${upload.uuid}/confirm`
-    || confirmUrl.origin !== PUBLIC_SITE_ORIGIN
-    || confirmUrl.pathname !== `/brains/${upload.uuid}/confirm`
-  ) {
-    throw new Error("The upload response has an invalid confirmation URL.");
-  }
-  const expiresAt = new Date(result.expiresAt);
-  if (Number.isNaN(expiresAt.getTime())) throw new Error("The upload response has an invalid expiration time.");
-  return {
-    ...upload,
-    expiresAt: expiresAt.toISOString(),
-    confirmPath: result.confirmPath,
-    confirmUrl: confirmUrl.toString(),
   };
 }
 
@@ -901,68 +858,6 @@ function assertMutationRequest(request, mutationToken) {
   }
 }
 
-function setUploadAuthCors(response) {
-  response.setHeader("Access-Control-Allow-Origin", PUBLIC_SITE_ORIGIN);
-  response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  response.setHeader("Access-Control-Allow-Private-Network", "true");
-  response.setHeader("Access-Control-Max-Age", "300");
-  response.setHeader("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers");
-}
-
-function assertUploadAuthCallbackRequest(request) {
-  assertJsonContentType(request);
-  if (request.headers.origin !== PUBLIC_SITE_ORIGIN) {
-    const error = new Error("Only requests from the AskReal.me authorization screen are allowed.");
-    error.status = 403;
-    throw error;
-  }
-}
-
-function assertUploadAuthPreflight(request) {
-  if (request.headers.origin !== PUBLIC_SITE_ORIGIN) {
-    const error = new Error("Only requests from the AskReal.me authorization screen are allowed.");
-    error.status = 403;
-    throw error;
-  }
-  if ((request.headers["access-control-request-method"] || "").toUpperCase() !== "POST") {
-    const error = new Error("The upload authorization callback only accepts POST requests.");
-    error.status = 405;
-    throw error;
-  }
-  const requestedHeaders = String(request.headers["access-control-request-headers"] || "")
-    .split(",")
-    .map((header) => header.trim().toLowerCase())
-    .filter(Boolean);
-  if (requestedHeaders.some((header) => header !== "content-type")) {
-    const error = new Error("The upload authorization callback contains a disallowed header.");
-    error.status = 403;
-    throw error;
-  }
-}
-
-function validAuthState(value) {
-  return typeof value === "string" && AUTH_STATE_RE.test(value);
-}
-
-function validUploadCode(value) {
-  return typeof value === "string" && /^[A-Za-z0-9_-]{43}$/u.test(value);
-}
-
-function assertStrictUploadCallback(body) {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    const error = new Error("The upload authorization callback has an invalid format.");
-    error.status = 400;
-    throw error;
-  }
-  const keys = Object.keys(body).sort();
-  if (keys.length !== 2 || keys[0] !== "state" || keys[1] !== "uploadCode") {
-    const error = new Error("The upload authorization callback only accepts state and uploadCode.");
-    error.status = 400;
-    throw error;
-  }
-}
-
 export function createReviewServer({
   brain,
   runtime,
@@ -971,22 +866,15 @@ export function createReviewServer({
   privacyRunner = runHeadlessPrivacyReview,
   aiReviewRunner = runHeadlessAiReview,
   prepareUpload = prepareBrainUpload,
-  uploadRunner = uploadPreparedBrain,
-  draftStatusRunner = getDraftStatus,
+  uploadRunner = stagePreparedBrain,
   verifyRuntime = true,
-  now = Date.now,
-  uploadAuthTtlMs = UPLOAD_AUTH_TTL_MS,
 }) {
   if (!Object.hasOwn(RUNTIMES, runtime)) throw new Error(`Unsupported runtime: ${runtime}`);
   if (verifyRuntime) resolveRuntime(runtime);
-  if (!Number.isInteger(uploadAuthTtlMs) || uploadAuthTtlMs <= 0) {
-    throw new Error("The upload authorization TTL must be a positive integer in milliseconds.");
-  }
   const session = createSession(brain);
   const sessionRoot = path.join(reviewRoot, session.id);
   fs.mkdirSync(sessionRoot, { recursive: true, mode: 0o700 });
   const mutationToken = crypto.randomBytes(32).toString("hex");
-  const uploadAuthorizations = new Map();
   let chatBusy = false;
   let aiReviewBusy = false;
   let mutationBusy = false;
@@ -996,147 +884,15 @@ export function createReviewServer({
     error: null,
   };
 
-  const removeAuthorization = (state) => {
-    const record = uploadAuthorizations.get(state);
-    if (!record) return;
-    if (record.timer) clearTimeout(record.timer);
-    record.uploadCode = null;
-    uploadAuthorizations.delete(state);
-  };
-
-  const authorization = (state, brainId) => {
-    if (!validAuthState(state)) {
-      const error = new Error("The upload authorization state is invalid.");
-      error.status = 403;
-      throw error;
-    }
-    const record = uploadAuthorizations.get(state);
-    if (!record) {
-      const error = new Error("Upload authorization was not found. Authorize it again.");
-      error.status = 403;
-      throw error;
-    }
-    if (record.expiresAt <= now()) {
-      removeAuthorization(state);
-      const error = new Error("Upload authorization expired. Authorize it again.");
-      error.status = 410;
-      throw error;
-    }
-    const normalizedBrainId = typeof brainId === "string" ? brainId.toLowerCase() : "";
-    if (
-      !UUID_RE.test(normalizedBrainId)
-      || record.brainId !== normalizedBrainId
-      || record.sessionId !== session.id
-      || session.metadata.uuid !== normalizedBrainId
-    ) {
-      const error = new Error("The upload authorization does not match the current brain.");
-      error.status = 403;
-      throw error;
-    }
-    return record;
-  };
-
   const server = http.createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "no-referrer");
     response.setHeader("Cache-Control", "no-store");
     const url = new URL(request.url, "http://127.0.0.1");
     try {
-      if (url.pathname === UPLOAD_AUTH_CALLBACK_PATH) {
-        setUploadAuthCors(response);
-        if (request.method === "OPTIONS") {
-          assertUploadAuthPreflight(request);
-          response.writeHead(204);
-          response.end();
-          return;
-        }
-        if (request.method === "POST") assertUploadAuthCallbackRequest(request);
-      } else if (request.method === "POST") {
-        assertMutationRequest(request, mutationToken);
-      }
+      if (request.method === "POST") assertMutationRequest(request, mutationToken);
       if (request.method === "GET" && url.pathname === "/api/state") {
         sendJson(response, 200, publicState(session, runtime, privacyReview));
-        return;
-      }
-      if (request.method === "POST" && url.pathname === "/api/upload-auth/start") {
-        const body = await readJson(request);
-        const brainId = session.metadata.uuid;
-        if (typeof body.brainId !== "string" || body.brainId.toLowerCase() !== brainId) {
-          const error = new Error("The upload authorization request does not match the current brain.");
-          error.status = 409;
-          throw error;
-        }
-        const remote = await draftStatusRunner(brainId);
-        if (remote.status === "missing" || remote.status === "expired") {
-          sendJson(response, 200, { mode: "create" });
-          return;
-        }
-        if (remote.status === "pending") {
-          sendJson(response, 200, {
-            mode: "pending",
-            confirmUrl: remote.confirmUrl,
-            expiresAt: remote.expiresAt,
-          });
-          return;
-        }
-        for (const [state, record] of uploadAuthorizations) {
-          if (record.sessionId === session.id) removeAuthorization(state);
-        }
-        const state = crypto.randomBytes(32).toString("base64url");
-        const expiresAt = now() + uploadAuthTtlMs;
-        const record = {
-          sessionId: session.id,
-          brainId,
-          expiresAt,
-          status: "pending",
-          uploadCode: null,
-          timer: null,
-        };
-        record.timer = setTimeout(() => removeAuthorization(state), uploadAuthTtlMs);
-        record.timer.unref();
-        uploadAuthorizations.set(state, record);
-        const authorizeUrl = new URL("/upload-authorize", PUBLIC_SITE_ORIGIN);
-        authorizeUrl.searchParams.set("brainId", brainId);
-        authorizeUrl.searchParams.set("callback", `${localOrigin(request)}${UPLOAD_AUTH_CALLBACK_PATH}`);
-        authorizeUrl.searchParams.set("state", state);
-        sendJson(response, 200, {
-          mode: "update",
-          authorizeUrl: authorizeUrl.toString(),
-          state,
-          expiresAt: new Date(expiresAt).toISOString(),
-        });
-        return;
-      }
-      if (request.method === "POST" && url.pathname === "/api/upload-auth/status") {
-        const body = await readJson(request);
-        const record = authorization(body.state, body.brainId);
-        sendJson(response, 200, {
-          status: record.status,
-          expiresAt: new Date(record.expiresAt).toISOString(),
-          ...(record.status === "failed"
-            ? { error: "Could not complete the AskReal.me authorization callback. Try again." }
-            : {}),
-        });
-        return;
-      }
-      if (request.method === "POST" && url.pathname === UPLOAD_AUTH_CALLBACK_PATH) {
-        const body = await readJson(request);
-        assertStrictUploadCallback(body);
-        const record = authorization(body.state, session.metadata.uuid);
-        if (record.status !== "pending") {
-          const error = new Error("This upload authorization has already been used.");
-          error.status = 409;
-          throw error;
-        }
-        if (!validUploadCode(body.uploadCode)) {
-          record.status = "failed";
-          const error = new Error("The upload authorization code is invalid.");
-          error.status = 400;
-          throw error;
-        }
-        record.status = "authorized";
-        record.uploadCode = body.uploadCode;
-        sendJson(response, 200, { accepted: true });
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/privacy-review") {
@@ -1275,49 +1031,13 @@ export function createReviewServer({
             : { changed: [], backup: null };
           assertSessionUnchanged(session);
           let upload;
-          let uploadAuthorization;
           try {
             const prepared = await prepareUpload(session.brain, { expectedFiles: session.files });
-            const brainId = session.metadata.uuid;
-            const remote = await draftStatusRunner(brainId);
-            if (remote.status === "claimed") {
-              const record = authorization(body.authState, brainId);
-              if (record.status !== "authorized" || !record.uploadCode) {
-                const error = new Error("Authorize the existing-brain update from your AskReal.me account.");
-                error.status = 409;
-                throw error;
-              }
-              uploadAuthorization = record.uploadCode;
-              removeAuthorization(body.authState);
-            } else if (remote.status === "pending") {
-              const error = new Error(`This brain is already uploaded and waiting for ownership confirmation: ${remote.confirmUrl}`);
-              error.status = 409;
-              throw error;
-            } else if (body.authState !== undefined) {
-              const error = new Error("Existing-brain authorization cannot be used for a first-time brain upload.");
-              error.status = 400;
-              throw error;
-            }
-            upload = publicUploadResult(await uploadRunner({
-              prepared,
-              draftStatus: remote.status,
-              ...(uploadAuthorization ? { uploadAuthorization } : {}),
-            }));
-            if (remote.status === "claimed" && (upload.mode !== "updated" || upload.uuid !== brainId)) {
-              throw new Error("The existing-brain update response does not match the current UUID.");
-            }
-            if (remote.status !== "claimed" && upload.mode !== "created") {
-              throw new Error("The first-time upload response has an invalid operation.");
-            }
+            const result = await uploadRunner({ prepared });
+            upload = pendingUploadResult({ ...result, success: true }, session.metadata.brainId, prepared.fileCount);
           } catch (error) {
-            const rawMessage = error.message || String(error);
-            const safeMessage = uploadAuthorization
-              ? rawMessage.replaceAll(uploadAuthorization, "[upload authorization code redacted]")
-              : rawMessage;
             sendJson(response, error.status || 502, {
-              ...publicState(session, runtime, privacyReview),
-              saved,
-              error: safeMessage,
+              ...publicState(session, runtime, privacyReview), saved, error: error.message || String(error),
             });
             return;
           }
@@ -1344,7 +1064,6 @@ export function createReviewServer({
     }
   });
   server.on("close", () => {
-    for (const state of uploadAuthorizations.keys()) removeAuthorization(state);
   });
   return { server, session, runtime, mutationToken };
 }

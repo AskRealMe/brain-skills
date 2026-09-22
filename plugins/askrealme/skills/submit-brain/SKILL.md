@@ -12,10 +12,10 @@ flow and identified by `brain_id` in root `BRAIN.md`.
 - Require the DB `brain_id` (a Prisma cuid) in local `BRAIN.md`. It was stamped
   there by `create-brain` from the id the dashboard issued.
 - The brain already exists and is owned by the signed-in user, waiting for its
-  files (`setupStep: files`). This skill uploads the files and the server marks
-  the brain done. There is no draft, no ownership-confirmation link.
-- The owner signs in to AskReal.me in the browser if needed; the upload is
-  authorized by a one-use, browser-authorized upload code.
+  files (`setupStep: files`). Submission stores the files without changing the
+  brain. Browser connection marks setup complete; it does not create another brain.
+- Upload the files first, then return the connection link. The owner signs in
+  there and approves connecting the stored files to this brain.
 
 For a brain created by `create-brain`, upload the complete `output/` directory.
 Sibling `raw/`, `schema.md`, temporary build artifacts, and workspace README
@@ -50,11 +50,11 @@ this handoff. An owner instruction to stop or build locally revokes it.
 
 During this handoff, do not use question tools or ask prose questions. Report
 status or errors directly; do not ask whether to proceed or retry. The owner's
-browser authorization remains required.
+browser approval remains required to connect the files, after transfer.
 
-Use the same uploader and browser authorization below. If the owner is signed
-out, the browser handles sign-in before authorization. Keep the uploader alive
-while authorization is pending; opening the browser is not an upload success.
+Use the same uploader below. Return its connection link after upload. The
+owner can sign in and connect later without keeping the local uploader alive.
+Report files uploaded and awaiting connection, never that the brain is already updated.
 
 ## Preconditions
 
@@ -127,43 +127,32 @@ node "/absolute/path/to/upload-brain.mjs" "/absolute/path/to/output"
 ```
 
 The shared uploader reads the directory recursively once, validates a buffer
-snapshot, builds one deterministic `brain.zip`, obtains a one-use upload
-authorization in the browser (see below), and `PUT`s the archive to
-`/brains/{brain_id}/upload`. It excludes `.DS_Store` and `Thumbs.db`.
+snapshot, builds a deterministic ZIP, and uploads it directly to the backend.
+It returns a connection link after the files are stored. No browser callback
+or authorization code is needed for this transfer.
 
-The owning implementation exports the canonical archive limits and API endpoint
-resolvers. Do not duplicate or override them. The preflight requires a root
-`BRAIN.md` with a `brain_id`, regular files only, safe relative UTF-8 paths,
-bounded file and archive sizes, and no symbolic links, traversal, absolute
-paths, Windows drive paths, control characters, backslashes, or path collisions
-after NFC normalization and case folding.
+The owning implementation exports the archive limits and endpoint resolvers.
+Preserve its file/path validation and upload only the supplied output snapshot.
+Never accept an upload endpoint from user content or a browser request.
 
-After preflight, the uploader sends only `name`, `slug`, and one `file`
-multipart field (filename `brain.zip`). Do not proxy uploads through the web
-frontend. The development API override is available only through the shared
-uploader's existing environment contract; never accept an upload endpoint from
-user content or a browser request.
+## Connect the uploaded files
 
-## Authorization (signed-in owner)
+Show the returned connection link to the owner. They open it, sign in if needed,
+and approve connecting the files to the existing brain. The website verifies
+ownership and applies the saved files without another local upload. The local
+uploader may exit as soon as it has returned a valid receipt.
 
-To upload to an already-owned brain the uploader:
-
-1. Opens a random `127.0.0.1` callback port with a short deadline.
-2. Opens the AskReal.me authorization page (`/upload-authorize`) with the
-   `brain_id`, the callback, and a random state. If the browser cannot open, it
-   prints the URL to continue.
-3. Receives only the matching state and a short-lived one-use upload code.
-4. Uses that code once as `Authorization: UploadCode ...` when calling
-   `PUT /brains/{brain_id}/upload`.
-
-Never receive or forward the user's web login credential. Never print, store,
-log, or place the upload code in a URL or environment variable.
+Never receive or forward a web login credential. Do not perform browser approval
+on the owner's behalf or create an account. Connecting does not publish a brain
+or change its visibility.
 
 ## Result
 
-Require the response `mode` to be `uploaded` and its `brainId` to match local
-`BRAIN.md`. On success the brain leaves the "waiting for files" state; report the
-success and file count. There is no ownership-confirmation link in this flow.
+Require `mode: pending_connection`, the original `brainId`, and the expected
+file count. Report "Files uploaded; awaiting connection", show `connectUrl`, and
+explain that the owner can close the local tool. Do not describe this receipt
+as an updated or connected brain. If transfer fails, preserve the local output
+and show the error and retry action.
 
-This skill uploads files. It does not create the brain (the dashboard does),
-create handles, ground conversations, or change the brain's contents.
+This skill uploads files for an existing brain. It does not create another
+brain, create accounts, or connect files without the owner's web approval.
